@@ -121,7 +121,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     id: 'polymath',
     title: 'Polymath',
     description: 'Rank 3 in all five stats',
-    numIcon: '✛',
+    numIcon: '✦',
     check: ({ statRanks }) => {
       const stats: StatType[] = ['body', 'mind', 'spirit', 'career', 'hobby'];
       return stats.every((s) => (statRanks[s] || 0) >= 3);
