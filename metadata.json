@@ -1,0 +1,6 @@
+{
+  "name": "Habit Quest",
+  "description": "A dark fantasy personal habit tracker shaped like a single-player RPG, where quests earn XP, level your hero, and shape a dynamic sigil.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
