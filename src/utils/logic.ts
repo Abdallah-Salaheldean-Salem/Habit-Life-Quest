@@ -69,55 +69,55 @@ export function calculateQuestXp(
   return Math.round(base * multiplier * classMultiplier);
 }
 
-// Calculate current level and XP progress
-// Level 1 -> 2 is 100 XP. Each level after costs 1.25x the previous, floored.
+// Calculate current level and XP progress.
+// Level 1 -> 2 is 100 XP; each level after costs round(previous * 1.25). This
+// compounds the *rounded* value each step to match the canonical Habit Quest
+// curve exactly (Math.round on the running cost, not floor of 100*1.25^n).
 export function getLevelAndProgress(totalXp: number): {
   level: number;
   currentXp: number;
   nextLevelCost: number;
 } {
   let level = 1;
-  let remainingXp = totalXp;
+  let need = 100;
+  let acc = 0;
 
-  while (true) {
-    const nextLevelCost = Math.floor(100 * Math.pow(1.25, level - 1));
-    if (remainingXp >= nextLevelCost) {
-      remainingXp -= nextLevelCost;
-      level++;
-    } else {
-      return { level, currentXp: remainingXp, nextLevelCost };
-    }
+  while (totalXp >= acc + need) {
+    acc += need;
+    level++;
+    need = Math.round(need * 1.25);
   }
+  return { level, currentXp: totalXp - acc, nextLevelCost: need };
 }
 
-// Calculate title based on level
+// Calculate title based on level. Matches the canonical Habit Quest ladder:
+// [1 Wanderer, 3 Apprentice, 5 Adept, 8 Seasoned, 12 Veteran, 16 Master,
+//  22 Grandmaster, 30 Legend]. The highest threshold not exceeding the level wins.
+const TITLES: [number, string][] = [
+  [1, 'WANDERER'], [3, 'APPRENTICE'], [5, 'ADEPT'], [8, 'SEASONED'],
+  [12, 'VETERAN'], [16, 'MASTER'], [22, 'GRANDMASTER'], [30, 'LEGEND'],
+];
 export function getCharacterTitle(level: number): string {
-  if (level <= 2) return 'WANDERER';
-  if (level <= 4) return 'NOVICE';
-  if (level <= 7) return 'ADEPT';
-  if (level <= 9) return 'SEASONED'; // Level 8 is Seasoned
-  if (level <= 14) return 'HARDENED';
-  if (level <= 19) return 'VETERAN';
-  if (level <= 24) return 'CHAMPION';
-  if (level <= 29) return 'HERO';
-  return 'LEGEND';
+  let title = TITLES[0][1];
+  for (const [threshold, name] of TITLES) {
+    if (level >= threshold) title = name;
+  }
+  return title;
 }
 
-// Calculate rank for a single stat based on that stat's XP
-// Rank 0 is 0-99. Rank 1 starts at 100, Rank 2 at 250 (+150), Rank 3 at 450 (+200)
+// Calculate rank for a single stat based on that stat's XP. Matches the
+// canonical curve: the first rank costs 120 XP and each subsequent rank costs
+// round(previous * 1.2). Boundaries: Rank 1 at 120, Rank 2 at 264, Rank 3 at
+// 437, Rank 4 at 645, ...
 export function getStatRank(statXp: number): number {
   let rank = 0;
-  let costForNextRank = 100;
-  let accumulatedXp = 0;
+  let need = 120;
+  let acc = 0;
 
-  while (true) {
-    if (statXp >= accumulatedXp + costForNextRank) {
-      accumulatedXp += costForNextRank;
-      rank++;
-      costForNextRank += 50; // Increments: 100, 150, 200, 250, 300...
-    } else {
-      break;
-    }
+  while (statXp >= acc + need) {
+    acc += need;
+    rank++;
+    need = Math.round(need * 1.2);
   }
   return rank;
 }
@@ -554,17 +554,18 @@ export function runDiagnostics(): TestResult[] {
 
 
     // === CATEGORY 5: Per-Stat Ranks (4 tests) ===
+    // Canonical curve: Rank 1 at 120, Rank 2 at 264, Rank 3 at 437, Rank 4 at 645.
     // Test 17: Rank 0
-    assert('Stat Ranks', '0 XP is Rank 0', getStatRank(0) === 0);
+    assert('Stat Ranks', '0 XP is Rank 0', getStatRank(0) === 0 && getStatRank(119) === 0);
 
     // Test 18: Rank 1 boundary
-    assert('Stat Ranks', '100 XP is Rank 1', getStatRank(100) === 1 && getStatRank(249) === 1);
+    assert('Stat Ranks', '120 XP is Rank 1', getStatRank(120) === 1 && getStatRank(263) === 1);
 
     // Test 19: Rank 2 boundary
-    assert('Stat Ranks', '250 XP is Rank 2', getStatRank(250) === 2 && getStatRank(449) === 2);
+    assert('Stat Ranks', '264 XP is Rank 2', getStatRank(264) === 2 && getStatRank(436) === 2);
 
     // Test 20: Rank 3 boundary
-    assert('Stat Ranks', '450 XP is Rank 3', getStatRank(450) === 3 && getStatRank(699) === 3);
+    assert('Stat Ranks', '437 XP is Rank 3', getStatRank(437) === 3 && getStatRank(644) === 3);
 
 
     // === CATEGORY 6: Streaks & Forgiving Checks (4 tests) ===

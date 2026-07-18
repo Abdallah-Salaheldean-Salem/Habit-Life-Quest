@@ -71,7 +71,8 @@ export default function RadarChart({ statEffort }: RadarChartProps) {
 
   return (
     <div className="relative w-full aspect-square max-w-[240px] mx-auto select-none">
-      <svg className="w-full h-full" viewBox="0 0 220 220">
+      {/* Widened horizontally so the side labels ("SPIRIT", "CAREER") aren't clipped */}
+      <svg className="w-full h-full" viewBox="-22 0 264 220" preserveAspectRatio="xMidYMid meet">
         {/* Radar concentric grids */}
         {gridPolygons.map((points, index) => (
           <polygon
