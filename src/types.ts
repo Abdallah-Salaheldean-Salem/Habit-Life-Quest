@@ -51,56 +51,55 @@ export interface StatConfig {
   borderClass: string;
 }
 
-// Muted dark-fantasy palette, matching the canonical Habit Quest stat colours.
 export const STATS: Record<StatType, StatConfig> = {
   body: {
     name: 'Body',
     covers: 'movement, sleep, food',
-    color: '#6FA88A', // muted green
-    textClass: 'text-[#6FA88A]',
-    bgClass: 'bg-[#6FA88A]/10',
-    borderClass: 'border-[#6FA88A]/30'
+    color: '#34d399', // Emerald/Green
+    textClass: 'text-emerald-400',
+    bgClass: 'bg-emerald-500/10',
+    borderClass: 'border-emerald-500/30'
   },
   mind: {
     name: 'Mind',
     covers: 'study, reading, focus',
-    color: '#5B8FD6', // muted blue
-    textClass: 'text-[#5B8FD6]',
-    bgClass: 'bg-[#5B8FD6]/10',
-    borderClass: 'border-[#5B8FD6]/30'
+    color: '#60a5fa', // Blue
+    textClass: 'text-blue-400',
+    bgClass: 'bg-blue-500/10',
+    borderClass: 'border-blue-500/30'
   },
   spirit: {
     name: 'Spirit',
     covers: 'calm, connection, rest',
-    color: '#9B6FD0', // muted purple
-    textClass: 'text-[#9B6FD0]',
-    bgClass: 'bg-[#9B6FD0]/10',
-    borderClass: 'border-[#9B6FD0]/30'
+    color: '#c084fc', // Purple
+    textClass: 'text-purple-400',
+    bgClass: 'bg-purple-500/10',
+    borderClass: 'border-purple-500/30'
   },
   career: {
     name: 'Career',
     covers: 'work, craft, ambition',
-    color: '#C2705A', // muted ember/orange
-    textClass: 'text-[#C2705A]',
-    bgClass: 'bg-[#C2705A]/10',
-    borderClass: 'border-[#C2705A]/30'
+    color: '#fb923c', // Orange
+    textClass: 'text-orange-400',
+    bgClass: 'bg-orange-500/10',
+    borderClass: 'border-orange-500/30'
   },
   hobby: {
     name: 'Hobby',
     covers: 'play, making, joy',
-    color: '#D0708F', // muted rose/pink
-    textClass: 'text-[#D0708F]',
-    bgClass: 'bg-[#D0708F]/10',
-    borderClass: 'border-[#D0708F]/30'
+    color: '#f472b6', // Pink
+    textClass: 'text-pink-400',
+    bgClass: 'bg-pink-500/10',
+    borderClass: 'border-pink-500/30'
   }
 };
 
 export const CLASSES: Record<UserClass, { name: string; affinity: StatType; description: string }> = {
-  warrior: { name: 'Warrior', affinity: 'body', description: 'Bonus XP on Body quests' },
-  scholar: { name: 'Scholar', affinity: 'mind', description: 'Bonus XP on Mind quests' },
-  monk: { name: 'Monk', affinity: 'spirit', description: 'Bonus XP on Spirit quests' },
-  guildmaster: { name: 'Guildmaster', affinity: 'career', description: 'Bonus XP on Career quests' },
-  bard: { name: 'Bard', affinity: 'hobby', description: 'Bonus XP on Hobby quests' }
+  warrior: { name: 'Warrior', affinity: 'body', description: 'Gently focused on bodily movement, sleep, and nourishment.' },
+  scholar: { name: 'Scholar', affinity: 'mind', description: 'Gently focused on studying, reading, and deep concentration.' },
+  monk: { name: 'Monk', affinity: 'spirit', description: 'Gently focused on mindfulness, connection, and restorative calm.' },
+  guildmaster: { name: 'Guildmaster', affinity: 'career', description: 'Gently focused on productive work, professional crafts, and ambitions.' },
+  bard: { name: 'Bard', affinity: 'hobby', description: 'Gently focused on playful hobbies, creative making, and joyful arts.' }
 };
 
 export interface Achievement {

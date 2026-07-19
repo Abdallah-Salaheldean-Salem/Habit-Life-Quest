@@ -39,6 +39,11 @@ import Chronicle from './components/Chronicle';
 import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import { ACHIEVEMENTS } from './utils/achievements';
+
+// Real-world Supabase Sync client and service
+import { supabase } from './utils/supabase';
+import { requestOtp, verifyOtp, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
+
 import {
   toDateStr,
   getMonday,
@@ -88,6 +93,8 @@ export default function App() {
   const [showSyncInline, setShowSyncInline] = useState(false);
   const [creationEmail, setCreationEmail] = useState('');
   const [isSyncingLanding, setIsSyncingLanding] = useState(false);
+  const [showLandingOtpField, setShowLandingOtpField] = useState(false);
+  const [creationOtp, setCreationOtp] = useState('');
   
   // UI states
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
@@ -97,11 +104,145 @@ export default function App() {
   const [hoveredAchievement, setHoveredAchievement] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Cloud Sync Simulation State
+  // Cloud Sync Real State
   const [isSyncOpen, setIsSyncOpen] = useState(false);
   const [syncEmail, setSyncEmail] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showHeaderOtpField, setShowHeaderOtpField] = useState(false);
+  const [headerOtp, setHeaderOtp] = useState('');
+
+
+  // Migration logic covering hypothetical v1->v4 schemas
+  function migrate(save: any) {
+    const updated = { ...save };
+    if (!updated.version) updated.version = 1;
+    
+    // v1 -> v2: Added active flag to quests
+    if (updated.version < 2) {
+      if (updated.quests) {
+        updated.quests = updated.quests.map((q: any) => ({
+          ...q,
+          active: q.active !== undefined ? q.active : true
+        }));
+      }
+    }
+    
+    // v2 -> v3: Added target parameter for weekly quests
+    if (updated.version < 3) {
+      if (updated.quests) {
+        updated.quests = updated.quests.map((q: any) => ({
+          ...q,
+          target: q.target || (q.type === 'weekly' ? 2 : 1)
+        }));
+      }
+    }
+
+    // v3 -> v4: Added currentMockDate configuration for robust testing
+    if (updated.version < 4) {
+      updated.currentMockDate = updated.currentMockDate || '2026-07-18';
+      updated.version = SCHEMA_VERSION;
+    }
+
+    return updated;
+  }
+
+  // Helper to pull remote save state, merge with local state, and push back
+  const handleInitialMerge = async (userId: string, email: string) => {
+    setIsSyncing(true);
+    setIsSyncingLanding(true);
+    try {
+      const res = await pullSave(userId);
+      if (res.success && res.saveState) {
+        let localState: SaveStateData = {
+          version: SCHEMA_VERSION,
+          userName,
+          userClass,
+          quests,
+          ledger,
+          currentMockDate,
+          hasCreatedCharacter: true
+        };
+        
+        const saved = localStorage.getItem(SAVE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const migrated = migrate(parsed);
+            localState = {
+              version: SCHEMA_VERSION,
+              userName: migrated.userName,
+              userClass: migrated.userClass,
+              quests: migrated.quests,
+              ledger: migrated.ledger,
+              currentMockDate: migrated.currentMockDate,
+              hasCreatedCharacter: true
+            };
+          } catch (e) {
+            console.error('Error parsing local storage before merge:', e);
+          }
+        }
+        
+        const merged = mergeSaves(localState, res.saveState);
+        
+        // Update local React states
+        setUserName(merged.userName);
+        setUserClass(merged.userClass as UserClass);
+        setQuests(merged.quests);
+        setLedger(merged.ledger);
+        if (merged.currentMockDate) {
+          setCurrentMockDate(merged.currentMockDate);
+        }
+        setHasCreatedCharacter(true);
+        setSyncEmail(email);
+        
+        // Push merged state back to Supabase
+        await pushSave(userId, email, merged);
+        showToast('Save merged with cloud storage!');
+      } else if (res.success) {
+        // No remote save exists, push current local state to cloud
+        let localState: SaveStateData = {
+          version: SCHEMA_VERSION,
+          userName,
+          userClass,
+          quests,
+          ledger,
+          currentMockDate,
+          hasCreatedCharacter: true
+        };
+        
+        const saved = localStorage.getItem(SAVE_KEY);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            const migrated = migrate(parsed);
+            localState = {
+              version: SCHEMA_VERSION,
+              userName: migrated.userName,
+              userClass: migrated.userClass,
+              quests: migrated.quests,
+              ledger: migrated.ledger,
+              currentMockDate: migrated.currentMockDate,
+              hasCreatedCharacter: true
+            };
+          } catch (e) {
+            console.error('Error parsing local storage before push:', e);
+          }
+        }
+        
+        await pushSave(userId, email, localState);
+        setSyncEmail(email);
+        showToast('Initial backup complete. Live sync active!');
+      } else {
+        showToast(`Sync warning: ${res.error || 'could not fetch cloud save'}`);
+      }
+    } catch (err) {
+      console.error('Merge error:', err);
+    } finally {
+      setIsSyncing(false);
+      setIsSyncingLanding(false);
+    }
+  };
 
   // ---------------------------------------------------------
   // INITIAL LOAD & SCHEMA MIGRATION
@@ -140,6 +281,28 @@ export default function App() {
     }
   }, []);
 
+  // Listen to Supabase auth changes
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSyncEmail(session.user?.email || null);
+        handleInitialMerge(session.user?.id, session.user?.email || '');
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) {
+        setSyncEmail(session.user?.email || null);
+      } else {
+        setSyncEmail(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
   // Save changes to localStorage whenever core state updates
   useEffect(() => {
     if (quests.length > 0 || ledger.length > 0) {
@@ -157,39 +320,29 @@ export default function App() {
     }
   }, [userName, userClass, quests, ledger, currentMockDate, hasCreatedCharacter, syncEmail]);
 
-  // Migration logic covering hypothetical v1->v4 schemas
-  const migrate = (save: any) => {
-    const updated = { ...save };
-    if (!updated.version) updated.version = 1;
-    
-    // v1 -> v2: Added active flag to quests
-    if (updated.version < 2) {
-      if (updated.quests) {
-        updated.quests = updated.quests.map((q: any) => ({
-          ...q,
-          active: q.active !== undefined ? q.active : true
-        }));
+  // Automatic background push to Supabase on state change (if signed in)
+  useEffect(() => {
+    const triggerPush = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const stateToSave: SaveStateData = {
+          version: SCHEMA_VERSION,
+          userName,
+          userClass,
+          quests,
+          ledger,
+          currentMockDate,
+          hasCreatedCharacter
+        };
+        await pushSave(session.user.id, session.user.email || '', stateToSave);
       }
-    }
+    };
     
-    // v2 -> v3: Added target parameter for weekly quests
-    if (updated.version < 3) {
-      if (updated.quests) {
-        updated.quests = updated.quests.map((q: any) => ({
-          ...q,
-          target: q.target || (q.type === 'weekly' ? 2 : 1)
-        }));
-      }
+    if (quests.length > 0 || ledger.length > 0) {
+      triggerPush();
     }
+  }, [userName, userClass, quests, ledger, currentMockDate, hasCreatedCharacter]);
 
-    // v3 -> v4: Added currentMockDate configuration for robust testing
-    if (updated.version < 4) {
-      updated.currentMockDate = updated.currentMockDate || '2026-07-18';
-      updated.version = SCHEMA_VERSION;
-    }
-
-    return updated;
-  };
 
   const loadMockupState = () => {
     const mock = getMockSaveData('2026-07-18');
@@ -500,18 +653,45 @@ export default function App() {
     showToast(`Profile updated to ${name} the ${CLASSES[editClass].name}!`);
   };
 
-  // Trigger simulated Cloud Sync via email link
-  const handleCloudSync = (e: React.FormEvent) => {
+  // Trigger real Cloud Sync via email link (Requesting OTP / Verifying OTP)
+  const handleCloudSync = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!emailInput.trim()) return;
-    setIsSyncing(true);
+    const email = emailInput.trim();
+    if (!email) return;
 
-    setTimeout(() => {
-      setSyncEmail(emailInput.trim());
+    setIsSyncing(true);
+    try {
+      if (!showHeaderOtpField) {
+        // Request OTP
+        const res = await requestOtp(email);
+        if (res.success) {
+          setShowHeaderOtpField(true);
+          showToast('One-time password sent to your email!');
+        } else {
+          showToast(`Error: ${res.error || 'Failed to send code'}`);
+        }
+      } else {
+        // Verify OTP
+        const otp = headerOtp.trim();
+        if (!otp) return;
+        const res = await verifyOtp(email, otp);
+        if (res.success && res.session) {
+          setShowHeaderOtpField(false);
+          setIsSyncOpen(false);
+          setHeaderOtp('');
+          showToast('Verification successful! Sync active.');
+          // Merge save data
+          await handleInitialMerge(res.session.user.id, email);
+        } else {
+          showToast(`Error: ${res.error || 'Invalid code'}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('An unexpected authentication error occurred.');
+    } finally {
       setIsSyncing(false);
-      setIsSyncOpen(false);
-      showToast('Cloud sync complete. Database merged offline-first!');
-    }, 1500);
+    }
   };
 
   // Handle character creation submission on landing page
@@ -529,19 +709,45 @@ export default function App() {
     showToast(`Welcome, ${name} the ${CLASSES[creationClass].name}! Your quest begins.`);
   };
 
-  // Handle cloud sync simulation on landing page
-  const handleSyncLanding = (e: React.FormEvent) => {
+  // Handle cloud sync OTP request & verify on landing page
+  const handleSyncLanding = async (e: React.FormEvent) => {
     e.preventDefault();
     const email = creationEmail.trim();
     if (!email) return;
-    setIsSyncingLanding(true);
 
-    setTimeout(() => {
-      setSyncEmail(email);
-      setHasCreatedCharacter(true);
+    setIsSyncingLanding(true);
+    try {
+      if (!showLandingOtpField) {
+        // Request OTP
+        const res = await requestOtp(email);
+        if (res.success) {
+          setShowLandingOtpField(true);
+          showToast('One-time password sent to your email!');
+        } else {
+          showToast(`Error: ${res.error || 'Failed to send code'}`);
+        }
+      } else {
+        // Verify OTP
+        const otp = creationOtp.trim();
+        if (!otp) return;
+        const res = await verifyOtp(email, otp);
+        if (res.success && res.session) {
+          setShowLandingOtpField(false);
+          setCreationOtp('');
+          showToast('Verification successful! Character synced.');
+          // Merge save data and enter dashboard
+          await handleInitialMerge(res.session.user.id, email);
+          setHasCreatedCharacter(true);
+        } else {
+          showToast(`Error: ${res.error || 'Invalid code'}`);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      showToast('An unexpected authentication error occurred.');
+    } finally {
       setIsSyncingLanding(false);
-      showToast('Cloud sync complete. Welcome back, Adventurer!');
-    }, 1500);
+    }
   };
 
   // ---------------------------------------------------------
@@ -777,31 +983,56 @@ export default function App() {
                     SIGN IN TO SYNC
                   </h2>
                   <p className="font-sans text-xs text-slate-400 mt-1.5 leading-normal">
-                    Enter your email to request a passwordless code and synchronize your hero logs.
+                    {showLandingOtpField 
+                      ? "Enter the 6-digit verification code sent to your email to pull your character save."
+                      : "Enter your email to request a passwordless code and synchronize your hero logs."}
                   </p>
                 </div>
 
-                <div>
-                  <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
-                    EMAIL ADDRESS
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="Enter your email address"
-                    value={creationEmail}
-                    onChange={(e) => setCreationEmail(e.target.value)}
-                    className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans"
-                  />
-                </div>
+                {!showLandingOtpField ? (
+                  <div>
+                    <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+                      EMAIL ADDRESS
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="Enter your email address"
+                      value={creationEmail}
+                      onChange={(e) => setCreationEmail(e.target.value)}
+                      className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans"
+                    />
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+                      6-DIGIT CODE
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Enter 6-digit code"
+                      value={creationOtp}
+                      onChange={(e) => setCreationOtp(e.target.value)}
+                      className="w-full bg-[#1a1a2e] border border-[#d4af37]/40 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono tracking-widest text-center"
+                    />
+                  </div>
+                )}
 
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowSyncInline(false)}
+                    onClick={() => {
+                      if (showLandingOtpField) {
+                        setShowLandingOtpField(false);
+                        setCreationOtp('');
+                      } else {
+                        setShowSyncInline(false);
+                      }
+                    }}
                     className="flex-1 border border-white/5 text-slate-400 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md hover:bg-[#1a1a2e] transition-colors cursor-pointer"
                   >
-                    Back to Character Creation
+                    {showLandingOtpField ? 'Back to Email' : 'Back to Character Creation'}
                   </button>
                   <button
                     type="submit"
@@ -810,10 +1041,10 @@ export default function App() {
                   >
                     {isSyncingLanding ? (
                       <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Simulating link...
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
                       </>
                     ) : (
-                      'Request Code'
+                      showLandingOtpField ? 'Verify Code' : 'Request Code'
                     )}
                   </button>
                 </div>
@@ -914,39 +1145,100 @@ export default function App() {
                       <span className="font-mono text-[8px] text-slate-500 uppercase block">Synced Profile:</span>
                       <span className="font-mono text-xs text-emerald-400 font-bold block overflow-ellipsis overflow-hidden">{syncEmail}</span>
                     </div>
-                    <button
-                      onClick={() => {
-                        setSyncEmail(null);
-                        showToast('Sync profile logged out.');
-                      }}
-                      className="w-full bg-[#1a1a2e] border border-white/10 hover:border-rose-500/30 text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all"
-                    >
-                      Sever Connection
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={async () => {
+                          const { data: { session } } = await supabase.auth.getSession();
+                          if (session?.user) {
+                            await handleInitialMerge(session.user.id, session.user.email || '');
+                          }
+                        }}
+                        disabled={isSyncing}
+                        className="flex-1 bg-emerald-600/20 border border-emerald-500/30 hover:border-emerald-400/50 text-emerald-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1"
+                      >
+                        {isSyncing ? (
+                          <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                        ) : null}
+                        <span>Sync Now</span>
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const { error } = await supabase.auth.signOut();
+                          if (error) {
+                            showToast(`Logout error: ${error.message}`);
+                          } else {
+                            setSyncEmail(null);
+                            setShowHeaderOtpField(false);
+                            setHeaderOtp('');
+                            showToast('Offline mode active. Connection severed.');
+                          }
+                        }}
+                        className="flex-1 bg-[#1a1a2e] border border-white/10 hover:border-rose-500/30 text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all"
+                      >
+                        Sever
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <form onSubmit={handleCloudSync} className="space-y-3">
-                    <input
-                      type="email"
-                      required
-                      placeholder="Enter your email address"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none"
-                    />
-                    <button
-                      type="submit"
-                      disabled={isSyncing}
-                      className="w-full bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                    >
-                      {isSyncing ? (
-                        <>
-                          <RefreshCw className="w-3 h-3 animate-spin" /> Simulating link...
-                        </>
-                      ) : (
-                        'Request Passwordless Code'
-                      )}
-                    </button>
+                    {!showHeaderOtpField ? (
+                      <>
+                        <input
+                          type="email"
+                          required
+                          placeholder="Enter your email address"
+                          value={emailInput}
+                          onChange={(e) => setEmailInput(e.target.value)}
+                          className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none"
+                        />
+                        <button
+                          type="submit"
+                          disabled={isSyncing}
+                          className="w-full bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                        >
+                          {isSyncing ? (
+                            <>
+                              <RefreshCw className="w-3 h-3 animate-spin" /> Sending...
+                            </>
+                          ) : (
+                            'Request Passwordless Code'
+                          )}
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Enter 6-digit code"
+                          value={headerOtp}
+                          onChange={(e) => setHeaderOtp(e.target.value)}
+                          className="w-full bg-[#1a1a2e] border border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none tracking-widest text-center font-mono"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowHeaderOtpField(false);
+                              setHeaderOtp('');
+                            }}
+                            className="flex-1 bg-[#1a1a2e] border border-white/10 hover:border-white/20 text-slate-400 font-mono text-[9px] py-1.5 rounded cursor-pointer"
+                          >
+                            Back
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSyncing}
+                            className="flex-1 bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer flex items-center justify-center gap-1"
+                          >
+                            {isSyncing ? (
+                              <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                            ) : null}
+                            <span>Verify</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </form>
                 )}
               </div>
@@ -1697,8 +1989,31 @@ export default function App() {
                 </div>
               </div>
 
+              {/* DANGER ZONE - RESET PROGRESS */}
+              <div className="border-t border-white/5 pt-5 mt-4">
+                <h4 className="font-mono text-[10px] text-rose-400 font-bold uppercase tracking-widest mb-1.5">
+                  DANGER ZONE
+                </h4>
+                <p className="text-[10px] text-slate-500 font-mono mb-3.5 leading-relaxed">
+                  Permanently clear your ledger, resetting your character level to 1 and all stat points back to 0. Your current quests and settings will be preserved.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Are you absolutely sure you want to reset all your levels and points? This will wipe your ledger history and start you back at Level 1 with 0 XP. This action cannot be undone.")) {
+                      setLedger([]);
+                      setIsEditingCharacter(false);
+                      showToast("All levels, ranks, and points have been reset!");
+                    }
+                  }}
+                  className="w-full bg-rose-950/20 hover:bg-rose-900/30 border border-rose-500/30 hover:border-rose-400/50 text-rose-400 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md cursor-pointer transition-all text-center font-bold"
+                >
+                  Reset Levels & Points
+                </button>
+              </div>
+
               {/* ACTION BUTTONS */}
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-4">
                 <button
                   type="button"
                   onClick={() => setIsEditingCharacter(false)}

@@ -7,16 +7,16 @@
   --font-body: "Spectral", ui-serif, serif;
   --font-mono: "IBM Plex Mono", monospace;
 
-  /* Theme color overrides — matched to the canonical Habit Quest palette */
-  --color-gold-light: #F2D68A;
-  --color-gold: #C9A24D;
-  --color-gold-dark: #8A6A22;
-
-  --color-quest-body: #6FA88A;   /* muted green */
-  --color-quest-mind: #5B8FD6;   /* muted blue */
-  --color-quest-spirit: #9B6FD0; /* muted purple */
-  --color-quest-career: #C2705A; /* muted ember */
-  --color-quest-hobby: #D0708F;  /* muted rose */
+  /* Theme color overrides */
+  --color-gold-light: #f3e5ab;
+  --color-gold: #d4af37;
+  --color-gold-dark: #aa7c11;
+  
+  --color-quest-body: #34d399;   /* Green */
+  --color-quest-mind: #60a5fa;   /* Blue */
+  --color-quest-spirit: #c084fc; /* Purple */
+  --color-quest-career: #fb923c; /* Orange */
+  --color-quest-hobby: #f472b6;  /* Pink */
 }
 
 /* Custom scrollbars */
@@ -37,13 +37,8 @@
 
 /* Base custom styles */
 body {
-  /* Deep indigo ground with the same radial wash as the canonical app */
-  background-color: #090C16;
-  background-image:
-    radial-gradient(1200px 700px at 50% -10%, #1B2444 0%, rgba(27,36,68,0) 65%),
-    radial-gradient(900px 600px at 100% 100%, #17203C 0%, rgba(23,32,60,0) 60%);
-  background-attachment: fixed;
-  color: #E7E1CF;
+  background-color: #050510;
+  color: #e0e0e0;
   font-family: var(--font-body);
 }
 
