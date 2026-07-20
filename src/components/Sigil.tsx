@@ -7,14 +7,6 @@ import React from 'react';
 import { Sword, BookOpen, Sparkles, Crown, Music, Shield } from 'lucide-react';
 import { UserClass, StatType, STATS } from '../types';
 
-const CLASS_IMAGES: Record<UserClass, string> = {
-  warrior: 'https://images.unsplash.com/photo-1614036417651-efe5912149d8?auto=format&fit=crop&w=150&h=150&q=80',
-  scholar: 'https://images.unsplash.com/photo-1506880018603-83d5b814b5a6?auto=format&fit=crop&w=150&h=150&q=80',
-  monk: 'https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?auto=format&fit=crop&w=150&h=150&q=80',
-  guildmaster: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=150&h=150&q=80',
-  bard: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=150&h=150&q=80'
-};
-
 interface SigilProps {
   userClass: UserClass;
   statXps: Record<StatType, number>;
@@ -80,9 +72,10 @@ export default function Sigil({ userClass, statXps, level }: SigilProps) {
     };
   });
 
-  // Get Lucide Icon for Class (mini badge style)
-  const renderClassIconMini = () => {
-    const iconProps = { className: 'w-3.5 h-3.5 text-[#d4af37]', strokeWidth: 2 };
+  // The class glyph engraved in the centre of the seal (a drawn mark, matching
+  // the canonical crest — no external portrait image).
+  const renderClassGlyph = () => {
+    const iconProps = { className: 'w-8 h-8 text-[#d4af37]', strokeWidth: 1.75 };
     switch (userClass) {
       case 'warrior':
         return <Sword {...iconProps} />;
@@ -189,22 +182,11 @@ export default function Sigil({ userClass, statXps, level }: SigilProps) {
         })}
       </svg>
 
-      {/* Warrior / Class Portrait Photo centered inside the Sigil */}
+      {/* Class glyph engraved in the centre of the seal — a drawn mark, no
+          external image, so it matches the canonical crest and works offline. */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="relative w-16 h-16 rounded-full overflow-hidden border-2 border-[#d4af37]/80 ring-2 ring-[#d4af37]/35 shadow-xl shadow-black/90 flex items-center justify-center bg-slate-950">
-          <img
-            src={CLASS_IMAGES[userClass]}
-            alt={userClass}
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover rounded-full select-none"
-          />
-          {/* Subtle gradient overlay to blend into the card */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-        </div>
-
-        {/* Mini Class Badge overlapping the bottom right corner of the portrait */}
-        <div className="absolute translate-x-5 translate-y-5 w-6 h-6 bg-[#0c0f20] border border-[#d4af37]/75 rounded-full flex items-center justify-center shadow-lg shadow-black/80">
-          {renderClassIconMini()}
+        <div className="w-16 h-16 rounded-full border-2 border-[#d4af37]/70 ring-1 ring-[#d4af37]/25 shadow-xl shadow-black/80 flex items-center justify-center bg-slate-950/80">
+          {renderClassGlyph()}
         </div>
       </div>
     </div>
