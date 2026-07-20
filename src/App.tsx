@@ -1263,8 +1263,9 @@ export default function App() {
           
           {/* =========================================================
               LEFT COLUMN (CHARACTER, LEDGER, ACHIEVEMENTS)
+              order-2 on phones so it drops below the quest board.
               ========================================================= */}
-          <div className="lg:col-span-4 space-y-6">
+          <div className="order-2 lg:order-1 lg:col-span-4 space-y-6">
             
             {/* CHARACTER CARD */}
             <div id="character-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden">
@@ -1467,8 +1468,9 @@ export default function App() {
 
           {/* =========================================================
               RIGHT COLUMN (QUEST LOG, BALANCE, CHRONICLE)
+              order-1 on phones so the quest board leads the page.
               ========================================================= */}
-          <div className="lg:col-span-8 space-y-6">
+          <div className="order-1 lg:order-2 lg:col-span-8 space-y-6">
             
             {/* QUEST LOG CARD */}
             <div id="quest-log-card" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
