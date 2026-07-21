@@ -207,15 +207,73 @@ export function getMockSaveData(dateStr: string): {
     difficulty: QuestDifficulty,
     type: QuestType,
     target: number,
-  ): Quest => ({ id, title, stat, difficulty, type, target, active: true, createdAt });
+    tier: number,
+    description: string,
+  ): Quest => ({ id, title, stat, difficulty, type, target, active: true, createdAt, tier, description });
 
+  // The playbook's opening build (sleep + body + mind + money), plus a couple
+  // of Tier I nodes from Soul and Hobbies to round out the character.
   const quests: Quest[] = [
-    mk('mock_deepwork', 'Deep work — 2h of focus', 'mind', 'hard', 'daily', 1),
-    mk('mock_read', 'Read 10 pages', 'mind', 'easy', 'daily', 1),
-    mk('mock_gratitude', 'Morning gratitude', 'spirit', 'easy', 'daily', 1),
-    mk('mock_strength', 'Strength training', 'body', 'normal', 'weekly', 3),
-    mk('mock_finances', 'Track finances', 'career', 'normal', 'weekly', 2),
-    mk('mock_ship', 'Ship a side project', 'hobby', 'hard', 'milestone', 1),
+    mk(
+      'mock_sleep',
+      'Fix sleep (7–8h)',
+      'body',
+      'normal',
+      'daily',
+      1,
+      0,
+      'The root node. Fixed wake time daily (±30 min), bed alarm 8h before, no screens 30 min prior, no caffeine after 2 PM, morning daylight. Unlock: 30 days.',
+    ),
+    mk(
+      'mock_read',
+      'Read 10 pages',
+      'mind',
+      'easy',
+      'daily',
+      1,
+      1,
+      'Start the Reading Ladder (Atomic Habits first). ~15 min. Never zero — one page on a bad day. Unlock: 30 days.',
+    ),
+    mk(
+      'mock_expenses',
+      'Track every expense',
+      'career',
+      'easy',
+      'daily',
+      1,
+      1,
+      'Log everything for 30 days — no judgment, just data. The leaks become obvious. Unlock: 30 days, nothing untracked.',
+    ),
+    mk(
+      'mock_strength',
+      'Strength train',
+      'body',
+      'normal',
+      'weekly',
+      3,
+      2,
+      'Full-body, 3 non-consecutive days. Compound lifts, 3×5–8 reps, progress a little each time. Unlock: ~12 sessions.',
+    ),
+    mk(
+      'mock_journal',
+      '5-min journal',
+      'spirit',
+      'easy',
+      'daily',
+      1,
+      1,
+      'Morning or night. Three lines: what happened, how you feel, what matters today. Unlock: 30 days.',
+    ),
+    mk(
+      'mock_craft',
+      'Pick a craft',
+      'hobby',
+      'easy',
+      'milestone',
+      1,
+      1,
+      'One creative outlet chosen because it pulls you, not because it’s useful. Commit for 30 days.',
+    ),
   ];
 
   const ledger: LedgerEntry[] = [];

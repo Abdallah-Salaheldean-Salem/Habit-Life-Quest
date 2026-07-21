@@ -90,7 +90,14 @@ export interface Quest {
   /** Archived quests set this to false but keep their ledger history. */
   active: boolean;
   createdAt: string;
+  /** Optional guidance / unlock criteria for the quest (from the Life Skill Tree playbook). */
+  description?: string;
+  /** Skill-tree tier: 1 (foundational) → 3 (advanced). */
+  tier?: number;
 }
+
+/** The shape used when drafting a new quest (before it is persisted). */
+export type QuestDraft = Omit<Quest, 'id' | 'createdAt' | 'active'>;
 
 export interface LedgerEntry {
   id: string;
