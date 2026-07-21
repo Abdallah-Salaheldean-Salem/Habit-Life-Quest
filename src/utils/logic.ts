@@ -70,17 +70,17 @@ export function calculateQuestXp(
 }
 
 // Calculate current level and XP progress
-// Level 1 -> 2 is 100 XP. Each level after costs 1.25x the previous, floored.
+// Level 0 -> 1 is 100 XP. Each level after costs 1.25x the previous, floored.
 export function getLevelAndProgress(totalXp: number): {
   level: number;
   currentXp: number;
   nextLevelCost: number;
 } {
-  let level = 1;
+  let level = 0;
   let remainingXp = totalXp;
 
   while (true) {
-    const nextLevelCost = Math.floor(100 * Math.pow(1.25, level - 1));
+    const nextLevelCost = Math.floor(100 * Math.pow(1.25, level));
     if (remainingXp >= nextLevelCost) {
       remainingXp -= nextLevelCost;
       level++;
@@ -92,14 +92,14 @@ export function getLevelAndProgress(totalXp: number): {
 
 // Calculate title based on level
 export function getCharacterTitle(level: number): string {
-  if (level <= 2) return 'WANDERER';
-  if (level <= 4) return 'NOVICE';
-  if (level <= 7) return 'ADEPT';
-  if (level <= 9) return 'SEASONED'; // Level 8 is Seasoned
-  if (level <= 14) return 'HARDENED';
-  if (level <= 19) return 'VETERAN';
-  if (level <= 24) return 'CHAMPION';
-  if (level <= 29) return 'HERO';
+  if (level <= 1) return 'WANDERER';
+  if (level <= 3) return 'NOVICE';
+  if (level <= 6) return 'ADEPT';
+  if (level <= 8) return 'SEASONED'; // Level 7 is Seasoned
+  if (level <= 13) return 'HARDENED';
+  if (level <= 18) return 'VETERAN';
+  if (level <= 23) return 'CHAMPION';
+  if (level <= 28) return 'HERO';
   return 'LEGEND';
 }
 
@@ -536,21 +536,21 @@ export function runDiagnostics(): TestResult[] {
 
 
     // === CATEGORY 4: Leveling Progress & Titles (4 tests) ===
-    // Test 13: Level 1 boundary
+    // Test 13: Level 0 boundary
     const l1 = getLevelAndProgress(50);
-    assert('Leveling', 'Level 1 progress is correct (50/100 XP)', l1.level === 1 && l1.currentXp === 50 && l1.nextLevelCost === 100);
+    assert('Leveling', 'Level 0 progress is correct (50/100 XP)', l1.level === 0 && l1.currentXp === 50 && l1.nextLevelCost === 100);
 
-    // Test 14: Level 2 boundary (costs 100 XP to level up)
+    // Test 14: Level 1 boundary (costs 100 XP to level up)
     const l2 = getLevelAndProgress(100);
-    assert('Leveling', 'Level 2 reached at 100 XP', l2.level === 2 && l2.currentXp === 0 && l2.nextLevelCost === 125);
+    assert('Leveling', 'Level 1 reached at 100 XP', l2.level === 1 && l2.currentXp === 0 && l2.nextLevelCost === 125);
 
-    // Test 15: Mockup Level 8 match
-    // Level 8 reached with 1749 XP, and has 243/476 XP progress
+    // Test 15: Mockup Level 7 match
+    // Level 7 reached with 1749 XP, and has 243/476 XP progress
     const l8 = getLevelAndProgress(1749);
-    assert('Leveling', 'Level 8 progress matches mockup (1749 total XP -> Level 8, 243/476 XP)', l8.level === 8 && l8.currentXp === 243 && l8.nextLevelCost === 476);
+    assert('Leveling', 'Level 7 progress matches mockup (1749 total XP -> Level 7, 243/476 XP)', l8.level === 7 && l8.currentXp === 243 && l8.nextLevelCost === 476);
 
     // Test 16: Level titles
-    assert('Leveling', 'Level 8 title is SEASONED', getCharacterTitle(8) === 'SEASONED');
+    assert('Leveling', 'Level 7 title is SEASONED', getCharacterTitle(7) === 'SEASONED');
 
 
     // === CATEGORY 5: Per-Stat Ranks (4 tests) ===

@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
+import { motion } from 'motion/react';
 import {
   Sparkles,
   Trophy,
@@ -32,13 +33,16 @@ import {
   Check,
   Sun,
   Moon,
-  Download
+  Download,
+  TrendingUp,
+  TrendingDown
 } from 'lucide-react';
 
 import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
+import TaskSkillTree from './components/TaskSkillTree';
 import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import { ACHIEVEMENTS } from './utils/achievements';
@@ -100,6 +104,8 @@ export default function App() {
   const [creationOtp, setCreationOtp] = useState('');
   
   // UI states
+  const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
+  const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
   const [isEditingCharacter, setIsEditingCharacter] = useState(false);
   const [editName, setEditName] = useState('Abdallah');
@@ -134,13 +140,37 @@ export default function App() {
   }, []);
 
   const handleInstallApp = async () => {
-    if (!deferredPrompt) return;
+    if (!deferredPrompt) {
+      showToast('App installation is only available on supported browsers or if not already installed.');
+      return;
+    }
     // Show the install prompt
     deferredPrompt.prompt();
     // Wait for the user to respond to the prompt
     const { outcome } = await deferredPrompt.userChoice;
     // We've used the prompt, and can't use it again, throw it away
     setDeferredPrompt(null);
+  };
+
+  const handleExportData = () => {
+    const data: SaveState = {
+      version: 1,
+      userName,
+      userClass,
+      quests,
+      ledger,
+      createdAt: new Date().toISOString()
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `habitquest-save-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Save data exported successfully!');
   };
 
   // Theme State
@@ -434,6 +464,21 @@ export default function App() {
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
   const appWideStreak = getAppWideStreak(ledgerDates, currentMockDate);
+
+  // 7-day trend calculations
+  const xpLast7Days = ledger
+    .filter(e => e.date >= getDaysAgoStr(currentMockDate, 6) && e.date <= currentMockDate)
+    .reduce((sum, e) => sum + e.xp, 0);
+  
+  const xpPrev7Days = ledger
+    .filter(e => e.date < getDaysAgoStr(currentMockDate, 6) && e.date >= getDaysAgoStr(currentMockDate, 13))
+    .reduce((sum, e) => sum + e.xp, 0);
+  
+  const xpTrend = xpLast7Days - xpPrev7Days;
+
+  // Streak trend
+  const streak7DaysAgo = getAppWideStreak(ledgerDates, getDaysAgoStr(currentMockDate, 7));
+  const streakTrend = appWideStreak - streak7DaysAgo;
 
   // Per-stat totals
   const getStatXp = (stat: StatType): number => {
@@ -841,7 +886,8 @@ export default function App() {
   };
 
   // Group active quests
-  const activeQuests = quests.filter((q) => q.active);
+  const allActiveQuests = quests.filter((q) => q.active);
+  const activeQuests = allActiveQuests.filter(q => questFilter === 'all' || q.stat === questFilter);
   const activeDailies = activeQuests.filter((q) => q.type === 'daily');
   const activeWeeklies = activeQuests.filter((q) => q.type === 'weekly');
   const activeMilestones = activeQuests.filter((q) => q.type === 'milestone');
@@ -1179,15 +1225,13 @@ export default function App() {
           {/* Controls & Sync */}
           <div className="flex items-center gap-3.5">
             {/* PWA Install */}
-            {deferredPrompt && (
-              <button
-                onClick={handleInstallApp}
-                className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
-                title="Install App"
-              >
-                <Download className="w-4 h-4" />
-              </button>
-            )}
+            <button
+              onClick={handleInstallApp}
+              className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
+              title="Install App"
+            >
+              <Download className="w-4 h-4" />
+            </button>
 
             {/* Theme Toggle */}
             <button
@@ -1402,9 +1446,11 @@ export default function App() {
                     </span>
                   </div>
                   <div className="w-full bg-[#1a1a2e] h-2 rounded overflow-hidden border border-white/5 shadow-inner">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#aa7c11] to-[#d4af37] rounded-r-sm transition-all duration-500"
-                      style={{ width: `${Math.min(100, (levelProgress.currentXp / levelProgress.nextLevelCost) * 100)}%` }}
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-[#aa7c11] to-[#d4af37] rounded-r-sm shadow-[0_0_8px_rgba(212,175,55,0.8)]"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${Math.min(100, (levelProgress.currentXp / levelProgress.nextLevelCost) * 100)}%` }}
+                      transition={{ type: "spring", bounce: 0.25, duration: 0.8 }}
                     />
                   </div>
                 </div>
@@ -1423,10 +1469,12 @@ export default function App() {
                         </div>
                         {/* Mini Stat Rank Progress Bar */}
                         <div className="w-full bg-[#1a1a2e] h-1.5 rounded overflow-hidden border border-white/5 relative">
-                          <div
-                            className="h-full transition-all duration-500 rounded-r-sm"
+                          <motion.div
+                            className="h-full rounded-r-sm"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${rankProgress.percentage}%` }}
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.8 }}
                             style={{
-                              width: `${rankProgress.percentage}%`,
                               backgroundColor: config.color,
                             }}
                           />
@@ -1452,10 +1500,17 @@ export default function App() {
               <div className="grid grid-cols-3 gap-2.5 text-center">
                 
                 {/* Total XP */}
-                <div className="bg-[#1a1a2e] border border-white/5 rounded-md p-3">
-                  <span className="font-mono text-[22px] font-bold text-[#d4af37] block">
-                    {totalXp}
-                  </span>
+                <div className="bg-[#1a1a2e] border border-white/5 rounded-md p-3 relative group">
+                  <div className="flex items-center justify-center gap-1">
+                    <span className="font-mono text-[22px] font-bold text-[#d4af37] block">
+                      {totalXp}
+                    </span>
+                    {xpTrend !== 0 && (
+                      <span className={`text-[10px] font-bold flex items-center ${xpTrend > 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={`XP gain this week vs last week (${xpTrend > 0 ? '+' : ''}${xpTrend})`}>
+                        {xpTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      </span>
+                    )}
+                  </div>
                   <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider block mt-0.5">
                     TOTAL XP
                   </span>
@@ -1478,6 +1533,11 @@ export default function App() {
                       {appWideStreak}
                     </span>
                     <Flame className={`w-4 h-4 text-[#d4af37] ${appWideStreak > 0 ? 'animate-pulse' : 'opacity-30'}`} />
+                    {streakTrend !== 0 && (
+                      <span className={`text-[10px] font-bold flex items-center ${streakTrend > 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={`Streak compared to 7 days ago (${streakTrend > 0 ? '+' : ''}${streakTrend})`}>
+                        {streakTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                      </span>
+                    )}
                   </div>
                   <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider block mt-0.5">
                     DAY STREAK
@@ -1562,16 +1622,74 @@ export default function App() {
               <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
-                    QUEST LOG
+                    {questViewMode === 'list' ? 'QUEST LOG' : 'TASK SKILL TREE'}
                   </h2>
                   <p className="font-mono text-[9px] text-slate-500 uppercase mt-0.5">
-                    Your Current Habits and Milestones
+                    {questViewMode === 'list' ? 'Your Current Habits and Milestones' : 'Path of Progression'}
                   </p>
                 </div>
-                <div className="font-mono text-[10px] text-slate-300 bg-[#1a1a2e] border border-white/5 py-1 px-3 rounded">
-                  <span className="text-[#d4af37] font-bold">{countStandingSatisfied}</span> of {activeQuests.length} standing cleared
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center bg-[#1a1a2e] rounded border border-white/5 p-1">
+                    <button
+                      onClick={() => setQuestViewMode('tree')}
+                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                        questViewMode === 'tree' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      TREE
+                    </button>
+                    <button
+                      onClick={() => setQuestViewMode('list')}
+                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                        questViewMode === 'list' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      LIST
+                    </button>
+                  </div>
+                  {questViewMode === 'list' && (
+                    <div className="font-mono text-[10px] text-slate-300 bg-[#1a1a2e] border border-white/5 py-1.5 px-3 rounded">
+                      <span className="text-[#d4af37] font-bold">{countStandingSatisfied}</span> of {activeQuests.length} standing cleared
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {questViewMode === 'tree' ? (
+                <TaskSkillTree onAddQuest={handleAddQuest} />
+              ) : (
+                <>
+                  {/* CATEGORY FILTER */}
+                  <div className="flex flex-wrap gap-2 mb-6">
+                    <button
+                      onClick={() => setQuestFilter('all')}
+                      className={`px-3 py-1 text-[10px] font-mono rounded-full border transition-all cursor-pointer ${
+                        questFilter === 'all' 
+                          ? 'bg-slate-800 text-white border-slate-600' 
+                          : 'bg-transparent text-slate-500 border-white/5 hover:border-white/20 hover:text-slate-300'
+                      }`}
+                    >
+                      ALL
+                    </button>
+                    {(Object.keys(STATS) as StatType[]).map((stat) => (
+                      <button
+                        key={stat}
+                        onClick={() => setQuestFilter(stat)}
+                        className={`px-3 py-1 text-[10px] font-mono rounded-full border transition-all cursor-pointer capitalize ${
+                          questFilter === stat 
+                            ? '' 
+                            : 'bg-transparent text-slate-500 border-white/5 hover:border-white/20 hover:text-slate-300'
+                        }`}
+                        style={questFilter === stat ? { 
+                          backgroundColor: `${STATS[stat].color}20`,
+                          color: STATS[stat].color,
+                          borderColor: `${STATS[stat].color}50`
+                        } : {}}
+                      >
+                        {STATS[stat].name}
+                      </button>
+                    ))}
+                  </div>
 
               {/* DAILY QUESTS CONTAINER */}
               <div className="space-y-4 mb-8">
@@ -1849,6 +1967,8 @@ export default function App() {
                 <Plus className="w-4 h-4" />
                 <span>Add a Quest</span>
               </button>
+              </>
+              )}
             </div>
 
             {/* BALANCE CARD (Radar Chart and effort progress bars) */}
@@ -1908,10 +2028,12 @@ export default function App() {
                         </div>
                         {/* Static Horizontal progress bar */}
                         <div className="w-full bg-[#1a1a2e] h-2 rounded overflow-hidden border border-white/5 shadow-inner">
-                          <div
-                            className="h-full rounded-r-sm transition-all duration-500"
+                          <motion.div
+                            className="h-full rounded-r-sm"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${val.percentage}%` }}
+                            transition={{ type: "spring", bounce: 0.2, duration: 0.8 }}
                             style={{
-                              width: `${val.percentage}%`,
                               backgroundColor: config.color,
                             }}
                           />
@@ -2082,12 +2204,12 @@ export default function App() {
                   DANGER ZONE
                 </h4>
                 <p className="text-[10px] text-slate-500 font-mono mb-3.5 leading-relaxed">
-                  Permanently clear your ledger, resetting your character level to 1 and all stat points back to 0. Your current quests and settings will be preserved.
+                  Permanently clear your ledger, resetting your character level to 0 and all stat points back to 0. Your current quests and settings will be preserved.
                 </p>
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Are you absolutely sure you want to reset all your levels and points? This will wipe your ledger history and start you back at Level 1 with 0 XP. This action cannot be undone.")) {
+                    if (window.confirm("Are you absolutely sure you want to reset all your levels and points? This will wipe your ledger history and start you back at Level 0 with 0 XP. This action cannot be undone.")) {
                       setLedger([]);
                       setIsEditingCharacter(false);
                       showToast("All levels, ranks, and points have been reset!");

@@ -1,4 +1,3 @@
-import { supabase } from './supabase';
 import { Quest, LedgerEntry } from '../types';
 
 export interface SaveStateData {
@@ -12,108 +11,44 @@ export interface SaveStateData {
   syncEmail?: string | null;
 }
 
+// In-memory store for mocks
+const store = new Map<string, SaveStateData>();
+
 /**
  * Request a passwordless OTP code for an email address
  */
 export async function requestOtp(email: string): Promise<{ success: boolean; error?: string }> {
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        // In the app, they can enter the token they receive directly in the UI
-        shouldCreateUser: true,
-      }
-    });
-
-    if (error) {
-      console.error('Supabase OTP Request Error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('Unexpected OTP error:', err);
-    return { success: false, error: err.message || 'An unexpected error occurred' };
-  }
+  console.log('[AI Studio] Mocking OTP request for:', email);
+  return { success: true };
 }
 
 /**
  * Verify the OTP token entered by the user
  */
 export async function verifyOtp(email: string, token: string): Promise<{ success: boolean; session?: any; error?: string }> {
-  try {
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token,
-      type: 'email', // standard email verification / magic link OTP
-    });
-
-    if (error) {
-      console.error('Supabase OTP Verification Error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true, session: data.session };
-  } catch (err: any) {
-    console.error('Unexpected OTP verification error:', err);
-    return { success: false, error: err.message || 'An unexpected error occurred' };
-  }
+  console.log('[AI Studio] Mocking OTP verify for:', email);
+  return { success: true, session: { user: { id: 'mock-user-id-' + email } } };
 }
 
 /**
  * Fetch the latest save state from Supabase
  */
 export async function pullSave(userId: string): Promise<{ success: boolean; saveState?: SaveStateData; error?: string }> {
-  try {
-    const { data, error } = await supabase
-      .from('habitquest_saves')
-      .select('data')
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error('Supabase Pull Error:', error);
-      return { success: false, error: error.message };
-    }
-
-    if (data && data.data) {
-      return { success: true, saveState: data.data as SaveStateData };
-    }
-
-    return { success: true }; // No previous save found (new user)
-  } catch (err: any) {
-    console.error('Unexpected pull error:', err);
-    return { success: false, error: err.message || 'An unexpected error occurred' };
+  console.log('[AI Studio] Mocking pullSave for:', userId);
+  const data = store.get(userId);
+  if (data) {
+    return { success: true, saveState: data };
   }
+  return { success: true };
 }
 
 /**
  * Push the save state to Supabase
  */
 export async function pushSave(userId: string, email: string, saveState: SaveStateData): Promise<{ success: boolean; error?: string }> {
-  try {
-    // Exclude the email from the nested state since we store it in a column, but keep it for completeness
-    const { error } = await supabase
-      .from('habitquest_saves')
-      .upsert({
-        user_id: userId,
-        email,
-        data: saveState,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id'
-      });
-
-    if (error) {
-      console.error('Supabase Push Error:', error);
-      return { success: false, error: error.message };
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.error('Unexpected push error:', err);
-    return { success: false, error: err.message || 'An unexpected error occurred' };
-  }
+  console.log('[AI Studio] Mocking pushSave for:', userId);
+  store.set(userId, saveState);
+  return { success: true };
 }
 
 /**
