@@ -11,6 +11,7 @@ interface DiagnosticsPanelProps {
   currentMockDate: string;
   onSetMockDate: (date: string) => void;
   onResetToMockup: () => void;
+  onHardReset: () => void;
   onAddFreeXp: (xp: number) => void;
   onAdvanceDay: () => void;
   onAdvanceWeek: () => void;
@@ -20,6 +21,7 @@ export default function DiagnosticsPanel({
   currentMockDate,
   onSetMockDate,
   onResetToMockup,
+  onHardReset,
   onAddFreeXp,
   onAdvanceDay,
   onAdvanceWeek,
@@ -182,14 +184,30 @@ export default function DiagnosticsPanel({
                       Fate Reset & Mockup
                     </h4>
                   </div>
-                  <p className="font-sans text-[10px] text-slate-400 leading-relaxed">
+                  <p className="font-sans text-[10px] text-slate-400 leading-relaxed mb-2">
                     Restore the state exactly as shown in the original Habit Quest design mockup!
                   </p>
                   <button
                     onClick={onResetToMockup}
-                    className="w-full bg-[#d4af37]/10 border border-[#d4af37]/30 hover:bg-[#d4af37]/20 text-[#d4af37] font-serif text-[10px] uppercase tracking-wider py-2 rounded cursor-pointer transition-all"
+                    className="w-full bg-[#d4af37]/10 border border-[#d4af37]/30 hover:bg-[#d4af37]/20 text-[#d4af37] font-serif text-[10px] uppercase tracking-wider py-2 rounded cursor-pointer transition-all mb-2"
                   >
                     Restore Original Mockup State
+                  </button>
+
+                  <div className="w-full h-px bg-white/10 my-2" />
+
+                  <p className="font-sans text-[10px] text-slate-400 leading-relaxed mb-2">
+                    Completely wipe all save data and start from scratch.
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (confirm('Are you sure you want to completely wipe your save data? This cannot be undone.')) {
+                        onHardReset();
+                      }
+                    }}
+                    className="w-full bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-400 font-serif text-[10px] uppercase tracking-wider py-2 rounded cursor-pointer transition-all"
+                  >
+                    Wipe Save Data (Hard Reset)
                   </button>
                 </div>
               </div>

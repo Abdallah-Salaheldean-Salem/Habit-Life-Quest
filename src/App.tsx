@@ -390,6 +390,17 @@ export default function App() {
   }, [userName, userClass, quests, ledger, currentMockDate, hasCreatedCharacter]);
 
 
+  const handleHardReset = () => {
+    localStorage.removeItem(SAVE_KEY);
+    setUserName('');
+    setUserClass('void');
+    setQuests([]);
+    setLedger([]);
+    setHasCreatedCharacter(false);
+    setCurrentMockDate(toDateStr(new Date()));
+    showToast('Save Data Wiped. Beginning anew.');
+  };
+
   const loadMockupState = () => {
     const mock = getMockSaveData('2026-07-18');
     setUserName(mock.userName);
@@ -1122,6 +1133,7 @@ export default function App() {
             onAdvanceWeek={handleAdvanceWeek}
             onAddFreeXp={handleAddFreeXp}
             onResetToMockup={loadMockupState}
+            onHardReset={handleHardReset}
           />
         </div>
 
@@ -1151,7 +1163,14 @@ export default function App() {
           
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="w-3.5 h-3.5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active" />
+            <img src="/logo.svg" alt="Habit Quest Logo" className="w-8 h-8 object-contain drop-shadow-md glow-active" onError={(e) => {
+              // Fallback to the CSS sigil if image is missing
+              e.currentTarget.style.display = 'none';
+              if (e.currentTarget.nextElementSibling) {
+                (e.currentTarget.nextElementSibling as HTMLElement).style.display = 'block';
+              }
+            }} />
+            <div className="w-3.5 h-3.5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active hidden" />
             <h1 className="font-serif text-lg font-bold tracking-[0.25em] text-[#d4af37] uppercase select-none cursor-default">
               HABITQUEST
             </h1>
@@ -2074,9 +2093,20 @@ export default function App() {
                       showToast("All levels, ranks, and points have been reset!");
                     }
                   }}
-                  className="w-full bg-rose-950/20 hover:bg-rose-900/30 border border-rose-500/30 hover:border-rose-400/50 text-rose-400 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md cursor-pointer transition-all text-center font-bold"
+                  className="w-full bg-rose-950/20 hover:bg-rose-900/30 border border-rose-500/30 hover:border-rose-400/50 text-rose-400 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md cursor-pointer transition-all text-center font-bold mb-2"
                 >
                   Reset Levels & Points
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (window.confirm("Are you sure you want to completely wipe your save data? This will clear everything including your name, class, and quests. This cannot be undone.")) {
+                      handleHardReset();
+                    }
+                  }}
+                  className="w-full bg-red-950/20 hover:bg-red-900/30 border border-red-600/40 hover:border-red-500/60 text-red-500 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md cursor-pointer transition-all text-center font-bold"
+                >
+                  Hard Reset (Start from Scratch)
                 </button>
               </div>
 
@@ -2106,6 +2136,7 @@ export default function App() {
         currentMockDate={currentMockDate}
         onSetMockDate={(d) => setCurrentMockDate(d)}
         onResetToMockup={loadMockupState}
+        onHardReset={handleHardReset}
         onAddFreeXp={handleAddFreeXp}
         onAdvanceDay={handleAdvanceDay}
         onAdvanceWeek={handleAdvanceWeek}
