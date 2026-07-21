@@ -1209,7 +1209,7 @@ export default function App() {
           
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Habit Quest Logo" className="w-8 h-8 object-contain drop-shadow-md glow-active" onError={(e) => {
+            <img src="/logo.png" alt="Habit Quest Logo" className="w-8 h-8 object-contain rounded-md drop-shadow-md glow-active" onError={(e) => {
               // Fallback to the CSS sigil if image is missing
               e.currentTarget.style.display = 'none';
               if (e.currentTarget.nextElementSibling) {
