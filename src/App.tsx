@@ -918,6 +918,15 @@ export default function App() {
     });
   };
 
+  // Compact date for small screens so the header never overflows the viewport.
+  const formatShortDate = (dateStr: string) => {
+    const d = new Date(dateStr + 'T12:00:00');
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
   if (!hasCreatedCharacter) {
     return (
       <div className="min-h-screen bg-[#050510] text-[#e0e0e0] font-sans pb-12 antialiased selection:bg-[#d4af37]/30 selection:text-white flex flex-col justify-between">
@@ -1217,13 +1226,13 @@ export default function App() {
               }
             }} />
             <div className="w-3.5 h-3.5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active hidden" />
-            <h1 className="font-serif text-lg font-bold tracking-[0.25em] text-[#d4af37] uppercase select-none cursor-default">
+            <h1 className="font-serif text-base sm:text-lg font-bold tracking-[0.12em] sm:tracking-[0.25em] text-[#d4af37] uppercase select-none cursor-default whitespace-nowrap">
               HABITQUEST
             </h1>
           </div>
 
           {/* Controls & Sync */}
-          <div className="flex items-center gap-3.5">
+          <div className="flex items-center gap-1.5 sm:gap-3.5">
             {/* PWA Install */}
             <button
               onClick={handleInstallApp}
@@ -1248,7 +1257,7 @@ export default function App() {
                 setIsSyncOpen(!isSyncOpen);
                 setEmailInput(syncEmail || '');
               }}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all ${
+              className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full border text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
                 syncEmail
                   ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400'
                   : 'border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-white'
@@ -1375,11 +1384,12 @@ export default function App() {
 
             {/* Current Date Display */}
             <div
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-white/5 bg-[#1a1a2e] rounded-md font-mono text-[10px] text-[#e0e0e0] cursor-default select-none uppercase tracking-wider"
-              title="Current Date"
+              className="flex items-center gap-1.5 px-2 sm:px-3 py-1.5 border border-white/5 bg-[#1a1a2e] rounded-md font-mono text-[10px] text-[#e0e0e0] cursor-default select-none uppercase tracking-wider shrink-0"
+              title={formatDateLabel(currentMockDate)}
             >
-              <Calendar className="w-3.5 h-3.5 text-[#d4af37]" />
-              <span>{formatDateLabel(currentMockDate)}</span>
+              <Calendar className="w-3.5 h-3.5 text-[#d4af37] shrink-0" />
+              <span className="hidden sm:inline">{formatDateLabel(currentMockDate)}</span>
+              <span className="sm:hidden whitespace-nowrap">{formatShortDate(currentMockDate)}</span>
             </div>
 
           </div>
