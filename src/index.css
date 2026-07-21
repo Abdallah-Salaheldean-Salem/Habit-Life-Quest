@@ -1,5 +1,18 @@
 @import "tailwindcss";
 
+/* Keep the page background dark and prevent any accidental horizontal
+   overflow from revealing a white gap on mobile. `overflow-x: clip` stops
+   sideways scrolling without creating a scroll container (so it does not
+   break the sticky header, unlike `overflow: hidden`). */
+html,
+body {
+  background-color: #050510;
+}
+body {
+  overflow-x: clip;
+  max-width: 100%;
+}
+
 /* Custom effects referenced by class name in the UI */
 .glow-active {
   filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.55));
