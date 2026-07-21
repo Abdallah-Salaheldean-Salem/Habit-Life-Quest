@@ -1746,6 +1746,9 @@ export default function App() {
                             >
                               {q.title}
                             </h4>
+                            {q.description && (
+                              <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
+                            )}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
@@ -1837,6 +1840,9 @@ export default function App() {
                             >
                               {q.title}
                             </h4>
+                            {q.description && (
+                              <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
+                            )}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
@@ -1927,6 +1933,9 @@ export default function App() {
                             >
                               {q.title}
                             </h4>
+                            {q.description && (
+                              <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
+                            )}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
