@@ -29,7 +29,10 @@ import {
   CloudLightning,
   AlertCircle,
   Cloud,
-  Check
+  Check,
+  Sun,
+  Moon,
+  Download
 } from 'lucide-react';
 
 import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES } from './types';
@@ -111,6 +114,49 @@ export default function App() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [showHeaderOtpField, setShowHeaderOtpField] = useState(false);
   const [headerOtp, setHeaderOtp] = useState('');
+
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    // Show the install prompt
+    deferredPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const { outcome } = await deferredPrompt.userChoice;
+    // We've used the prompt, and can't use it again, throw it away
+    setDeferredPrompt(null);
+  };
+
+  // Theme State
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const saved = localStorage.getItem('habitquest:theme');
+    return (saved as 'dark' | 'light') || 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('habitquest:theme', theme);
+    if (theme === 'light') {
+      document.documentElement.classList.add('light-theme');
+    } else {
+      document.documentElement.classList.remove('light-theme');
+    }
+  }, [theme]);
 
 
   // Migration logic covering hypothetical v1->v4 schemas
@@ -1113,6 +1159,26 @@ export default function App() {
 
           {/* Controls & Sync */}
           <div className="flex items-center gap-3.5">
+            {/* PWA Install */}
+            {deferredPrompt && (
+              <button
+                onClick={handleInstallApp}
+                className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
+                title="Install App"
+              >
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Theme Toggle */}
+            <button
+              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+              className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
+
             {/* Sync trigger button */}
             <button
               onClick={() => {
