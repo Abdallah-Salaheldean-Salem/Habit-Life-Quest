@@ -103,7 +103,18 @@ export default function TaskSkillTree({ onAddQuest }: { onAddQuest: (q: { title:
 
         {/* Render Nodes */}
         {nodes.map((node, i) => (
-          <SkillNode key={i} {...node} onAddQuest={onAddQuest} />
+          <SkillNode
+            key={i}
+            title={node.title}
+            subtitle={node.subtitle}
+            stat={node.stat}
+            difficulty={node.difficulty}
+            type={node.type}
+            delay={node.delay}
+            cx={node.cx}
+            cy={node.cy}
+            onAddQuest={onAddQuest}
+          />
         ))}
 
         {/* CORE NODE */}

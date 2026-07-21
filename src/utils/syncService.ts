@@ -1,3 +1,4 @@
+import { supabase } from './supabase';
 import { Quest, LedgerEntry } from '../types';
 
 export interface SaveStateData {
@@ -11,43 +12,65 @@ export interface SaveStateData {
   syncEmail?: string | null;
 }
 
-// In-memory store for mocks
-const store = new Map<string, SaveStateData>();
-
 /**
- * Request a passwordless OTP code for an email address
+ * Request a passwordless one-time code for an email address.
+ * Creates the user on first login.
  */
 export async function requestOtp(email: string): Promise<{ success: boolean; error?: string }> {
-  console.log('[AI Studio] Mocking OTP request for:', email);
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: { shouldCreateUser: true },
+  });
+  if (error) return { success: false, error: error.message };
   return { success: true };
 }
 
 /**
- * Verify the OTP token entered by the user
+ * Verify the emailed one-time code and open a session.
  */
-export async function verifyOtp(email: string, token: string): Promise<{ success: boolean; session?: any; error?: string }> {
-  console.log('[AI Studio] Mocking OTP verify for:', email);
-  return { success: true, session: { user: { id: 'mock-user-id-' + email } } };
+export async function verifyOtp(
+  email: string,
+  token: string
+): Promise<{ success: boolean; session?: any; error?: string }> {
+  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+  if (error) return { success: false, error: error.message };
+  return { success: true, session: data.session };
 }
 
 /**
- * Fetch the latest save state from Supabase
+ * Fetch the latest save state for a user from Supabase.
  */
-export async function pullSave(userId: string): Promise<{ success: boolean; saveState?: SaveStateData; error?: string }> {
-  console.log('[AI Studio] Mocking pullSave for:', userId);
-  const data = store.get(userId);
-  if (data) {
-    return { success: true, saveState: data };
-  }
+export async function pullSave(
+  userId: string
+): Promise<{ success: boolean; saveState?: SaveStateData; error?: string }> {
+  const { data, error } = await supabase
+    .from('saves')
+    .select('data')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) return { success: false, error: error.message };
+  if (data && data.data) return { success: true, saveState: data.data as SaveStateData };
   return { success: true };
 }
 
 /**
- * Push the save state to Supabase
+ * Push the save state to Supabase (insert or update the user's single row).
  */
-export async function pushSave(userId: string, email: string, saveState: SaveStateData): Promise<{ success: boolean; error?: string }> {
-  console.log('[AI Studio] Mocking pushSave for:', userId);
-  store.set(userId, saveState);
+export async function pushSave(
+  userId: string,
+  email: string,
+  saveState: SaveStateData
+): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase.from('saves').upsert(
+    {
+      user_id: userId,
+      email,
+      data: saveState,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id' }
+  );
+  if (error) return { success: false, error: error.message };
   return { success: true };
 }
 

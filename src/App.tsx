@@ -38,7 +38,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
@@ -423,7 +423,7 @@ export default function App() {
   const handleHardReset = () => {
     localStorage.removeItem(SAVE_KEY);
     setUserName('');
-    setUserClass('void');
+    setUserClass('scholar');
     setQuests([]);
     setLedger([]);
     setHasCreatedCharacter(false);
