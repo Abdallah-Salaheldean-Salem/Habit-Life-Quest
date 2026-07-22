@@ -65,7 +65,8 @@ import {
   getDailyQuestStreak,
   getWeeklyQuestStreak,
   getAppWideStreak,
-  getMockSaveData
+  getMockSaveData,
+  getUnlockProgress
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
@@ -537,6 +538,51 @@ export default function App() {
     }
     return 0; // Milestones do not have streaks
   };
+
+  // Renders a quest's progress toward "unlocking" (30 consistent days / 4 weeks
+  // / one milestone completion). Once unlocked, shows a Mastered badge instead.
+  const renderUnlockBar = (q: Quest) => {
+    const p = getUnlockProgress(q, ledger, currentMockDate);
+    const config = STATS[q.stat];
+
+    if (p.unlocked) {
+      return (
+        <div className="flex items-center gap-1 mt-1.5 font-mono text-[9px] font-bold uppercase tracking-wider text-[#d4af37]">
+          <Sparkles className="w-2.5 h-2.5" />
+          <span>Unlocked · Mastered</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-1.5">
+        <div className="flex justify-between items-center font-mono text-[8px] text-slate-500 uppercase tracking-wider mb-0.5">
+          <span>Unlock progress</span>
+          <span>
+            {p.current}/{p.target} {p.unit}
+          </span>
+        </div>
+        <div className="w-full bg-[#0c0c1b] h-1 rounded overflow-hidden border border-white/5">
+          <motion.div
+            className="h-full rounded-r-sm"
+            initial={{ width: 0 }}
+            animate={{ width: `${p.percent}%` }}
+            transition={{ type: 'spring', bounce: 0.2, duration: 0.8 }}
+            style={{ backgroundColor: config.color }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // "Max 3 active nodes" guardrail from the playbook: count quests still being
+  // built (active, not yet unlocked) vs. those already mastered.
+  const masteredCount = quests.filter(
+    (q) => q.active && getUnlockProgress(q, ledger, currentMockDate).unlocked,
+  ).length;
+  const buildingCount = quests.filter(
+    (q) => q.active && !getUnlockProgress(q, ledger, currentMockDate).unlocked,
+  ).length;
 
   // Check achievements unlocks
   const unlockedAchievementsCount = ACHIEVEMENTS.reduce((count, ach) => {
@@ -1638,7 +1684,26 @@ export default function App() {
                     {questViewMode === 'list' ? 'Your Current Habits and Milestones' : 'Path of Progression'}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+                  {(buildingCount > 0 || masteredCount > 0) && (
+                    <div
+                      className={`font-mono text-[10px] py-1.5 px-3 rounded border ${
+                        buildingCount > 3
+                          ? 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                          : 'bg-[#1a1a2e] border-white/5 text-slate-300'
+                      }`}
+                      title={
+                        buildingCount > 3
+                          ? 'The playbook suggests building no more than 3 nodes at once — spread too thin and you quit everything.'
+                          : 'Nodes you are actively building toward their 30-day unlock.'
+                      }
+                    >
+                      Focus <span className="font-bold">{buildingCount}</span>/3
+                      {masteredCount > 0 && (
+                        <span className="text-[#d4af37]"> · {masteredCount} mastered</span>
+                      )}
+                    </div>
+                  )}
                   <div className="flex items-center bg-[#1a1a2e] rounded border border-white/5 p-1">
                     <button
                       onClick={() => setQuestViewMode('tree')}
@@ -1759,6 +1824,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
@@ -1853,6 +1919,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
@@ -1946,6 +2013,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
