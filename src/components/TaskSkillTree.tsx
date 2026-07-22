@@ -1,262 +1,112 @@
 import React from 'react';
-import { motion } from 'motion/react';
-import { Plus, Moon } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { StatType, STATS, QuestDifficulty, QuestType, QuestDraft } from '../types';
 
-const TIER_LABEL: Record<number, string> = { 0: '◆', 1: 'I', 2: 'II', 3: 'III' };
+const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: '★' };
+const TIER_NAME: Record<number, string> = {
+  1: 'Foundation',
+  2: 'Consistency',
+  3: 'Capability',
+  4: 'Compounding',
+  5: 'Leverage',
+  6: 'Capstone',
+};
 
 interface NodeData {
   title: string;
-  subtitle: string;
   stat: StatType;
-  difficulty: QuestDifficulty;
-  type: QuestType;
-  target: number;
   tier: number;
-  /** Playbook guidance + unlock criteria, shown on hover and stored on the quest. */
+  type: QuestType;
+  difficulty: QuestDifficulty;
+  target: number;
   description: string;
-  delay?: number;
-  cx: number;
-  cy: number;
+  /** True for nodes carried over from the original v1 tree. */
+  v1?: boolean;
 }
 
-/** The root habit that anchors the whole tree. */
-const CORE_QUEST: QuestDraft = {
-  title: 'Fix sleep (7–8h)',
-  stat: 'body',
-  difficulty: 'normal',
-  type: 'daily',
-  target: 1,
-  tier: 0,
-  description:
-    'The root node — bad sleep quietly nerfs every stat. Fixed wake time daily (±30 min, weekends too), bed alarm 8h before, no screens 30 min prior, no caffeine after 2 PM, morning daylight within 30 min of waking. Unlock: 30 days.',
-};
-
-// Rows near the CORE are Tier I (foundational); rows toward the edges are
-// Tier III (advanced). Content follows the Life Skill Tree playbook.
+// The full Life Skill Tree v2 — 24-month campaign. Tiers I–III are the v1
+// foundation; IV–V and the ★ Capstones carry through month 24.
 const NODES: NodeData[] = [
-  // --- MIND (center column, x=400) ---
-  {
-    title: 'Deep work 2h',
-    subtitle: 'single-focus, no phone',
-    stat: 'mind',
-    type: 'daily',
-    difficulty: 'hard',
-    target: 1,
-    tier: 3,
-    description:
-      'One hard task — no phone, no tabs, no notifications. Build from 25-min blocks up to 90. Same time, same place daily. Unlock: 30 days at 2h of tracked focus.',
-    delay: 0.6,
-    cx: 400,
-    cy: 50,
-  },
-  {
-    title: 'Learn one skill',
-    subtitle: 'one course · daily practice',
-    stat: 'mind',
-    type: 'daily',
-    difficulty: 'normal',
-    target: 1,
-    tier: 2,
-    description:
-      'Pick ONE high-value skill. A real course + 45–60 min daily deliberate practice. Build something small each week. Unlock: 30 days of practice + one thing you built.',
-    delay: 0.4,
-    cx: 400,
-    cy: 150,
-  },
-  {
-    title: 'Read 10 pages',
-    subtitle: 'the reading ladder',
-    stat: 'mind',
-    type: 'daily',
-    difficulty: 'easy',
-    target: 1,
-    tier: 1,
-    description:
-      'Start the Reading Ladder (Atomic Habits first). ~15 min a day. Never zero — one page on a bad day. The streak matters more than the count. Unlock: 30 days.',
-    delay: 0.2,
-    cx: 400,
-    cy: 250,
-  },
+  // ============================ BODY ============================
+  { stat: 'body', tier: 1, title: 'Sleep 7–8h, fixed wake', type: 'daily', difficulty: 'normal', target: 1, v1: true, description: 'Fixed wake time first — it anchors everything. Daylight in your eyes within 30 min of waking, no caffeine after 2 PM. Unlock: 30 days within ±30 min.' },
+  { stat: 'body', tier: 1, title: 'Walk 8–10k steps', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: 'Baseline your steps for 3 days, then add 2,000. Stack it onto calls, stairs, parking far. Unlock: 30 days at target.' },
+  { stat: 'body', tier: 1, title: 'Drink 2–3L water', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: 'One glass on waking, one before each meal. Unlock: 30 days.' },
+  { stat: 'body', tier: 2, title: 'Strength train', type: 'weekly', difficulty: 'normal', target: 3, v1: true, description: 'Full-body, 3 non-consecutive days. Compounds only: squat, hinge, push, pull, carry. 3×5–8, add weight/rep at the top of the range. 45 min. Unlock: 12 sessions.' },
+  { stat: 'body', tier: 2, title: 'Cook own meals, protein first', type: 'daily', difficulty: 'normal', target: 1, v1: true, description: '~1.6–2 g/kg protein, built around a protein source. Learn 5 autopilot meals. Unlock: 30 days majority self-cooked.' },
+  { stat: 'body', tier: 2, title: 'Mobility / stretch 10 min', type: 'daily', difficulty: 'easy', target: 1, description: 'Ten minutes of mobility work. Unlock: 30 days.' },
+  { stat: 'body', tier: 3, title: 'Run 5K nonstop', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Couch-to-5K: walk/run intervals, shift toward running weekly over ~8 weeks. Unlock: 5K without stopping.' },
+  { stat: 'body', tier: 3, title: 'Visible body recomposition', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'The output of Tiers I–II held for months. Unlock: visible change + strength numbers up.' },
+  { stat: 'body', tier: 3, title: 'Deload every 8th week', type: 'weekly', difficulty: 'easy', target: 1, description: 'Back off on purpose — the failure mode here is injury, not laziness. Unlock: 2 deloads taken deliberately.' },
+  { stat: 'body', tier: 4, title: 'Hit a strength standard', type: 'milestone', difficulty: 'hard', target: 1, description: 'Barbell: bodyweight bench · 1.5× squat · 2× deadlift. Bodyweight: 10 pull-ups · 25 push-ups · 60s hollow. Train for a number.' },
+  { stat: 'body', tier: 4, title: 'Run 10K or a real race', type: 'milestone', difficulty: 'hard', target: 1, description: 'Enter and finish a real race. Unlock: race finished.' },
+  { stat: 'body', tier: 4, title: 'Full health check', type: 'milestone', difficulty: 'normal', target: 1, description: 'Bloodwork + dental + eyes. The easiest node to skip — book it in month 13, not 18.' },
+  { stat: 'body', tier: 4, title: '90-day sleep consistency', type: 'milestone', difficulty: 'hard', target: 1, description: '±30 min wake time for 90 straight days.' },
+  { stat: 'body', tier: 5, title: 'Adopt a physical discipline', type: 'weekly', difficulty: 'normal', target: 2, description: 'Martial art, climbing, swimming, calisthenics — skill + community, not just reps. Unlock: 3 months consistent.' },
+  { stat: 'body', tier: 5, title: 'Test yourself publicly', type: 'milestone', difficulty: 'hard', target: 1, description: 'A race, belt, grade, or comp. It converts training from a chore into a thing you’re in.' },
+  { stat: 'body', tier: 6, title: 'Strong, mobile, energetic', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Capstone. Two years injury-free; training is a fixed part of your week and stairs don’t register.' },
 
-  // --- BODY (left column, x=160) ---
-  {
-    title: 'Run 5K nonstop',
-    subtitle: 'couch-to-5k',
-    stat: 'body',
-    type: 'milestone',
-    difficulty: 'hard',
-    target: 1,
-    tier: 3,
-    description:
-      'Alternate walk/run intervals, shift the ratio toward running each week over ~8 weeks. Unlock: run 5K without stopping.',
-    delay: 0.6,
-    cx: 160,
-    cy: 50,
-  },
-  {
-    title: 'Strength train',
-    subtitle: '3× a week · compounds',
-    stat: 'body',
-    type: 'weekly',
-    difficulty: 'normal',
-    target: 3,
-    tier: 2,
-    description:
-      'Full-body, 3 non-consecutive days. Compound lifts only: squat, hinge, push, pull, carry. 3 sets of 5–8 reps; add a rep or a little weight when you hit the top. 45 min max. Unlock: ~12 sessions.',
-    delay: 0.4,
-    cx: 160,
-    cy: 150,
-  },
-  {
-    title: 'Walk 8–10k steps',
-    subtitle: 'baseline + 2,000',
-    stat: 'body',
-    type: 'daily',
-    difficulty: 'easy',
-    target: 1,
-    tier: 1,
-    description:
-      'Check your 3-day baseline, then add 2,000. Stack it onto calls, stairs, parking far, and one deliberate 20–30 min walk. Unlock: 30 days averaging your target.',
-    delay: 0.2,
-    cx: 160,
-    cy: 250,
-  },
+  // ============================ MIND ============================
+  { stat: 'mind', tier: 1, title: 'Read 10 pages', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: '~15 min ≈ 12–15 books/year. Anchor it after an existing habit. Start the ladder with Atomic Habits. Unlock: 30 days.' },
+  { stat: 'mind', tier: 1, title: 'Stay under doomscroll limit', type: 'daily', difficulty: 'normal', target: 1, v1: true, description: '30–45 min app timer, apps off the home screen, grayscale on. Replace, don’t just remove. Unlock: 30 days under cap.' },
+  { stat: 'mind', tier: 2, title: 'Learn ONE skill, daily practice', type: 'daily', difficulty: 'normal', target: 1, v1: true, description: 'One skill — make it your career skill (Sharpened Blade). Real course + 45–60 min daily practice, build weekly. Unlock: 30 days + one thing built.' },
+  { stat: 'mind', tier: 2, title: 'Write notes in your own words', type: 'weekly', difficulty: 'easy', target: 3, v1: true, description: 'Writing is how you find out whether you understood it. Unlock: a set you actually revisit.' },
+  { stat: 'mind', tier: 2, title: 'Spaced-repetition review', type: 'daily', difficulty: 'easy', target: 1, description: 'Review your cards daily. Unlock: 30 days.' },
+  { stat: 'mind', tier: 3, title: 'Deep work 2h', type: 'daily', difficulty: 'hard', target: 1, v1: true, description: 'One hard task, no phone/tabs, single focus. Build 25-min → 90-min blocks. Same time, same place. Unlock: 30 days of tracked focus.' },
+  { stat: 'mind', tier: 3, title: 'Ship something with the skill', type: 'milestone', difficulty: 'hard', target: 1, description: 'Build a real thing with your one skill. Unlock: it exists and works.' },
+  { stat: 'mind', tier: 3, title: 'Finish 12 books (year 1)', type: 'milestone', difficulty: 'hard', target: 1, description: 'The reading ladder, one rung at a time. Unlock: 12 done.' },
+  { stat: 'mind', tier: 4, title: 'Rebuild a hard fundamental', type: 'milestone', difficulty: 'hard', target: 1, description: 'A bounded playlist, a 1-hour daily cap, weekly scripts as proof of work. Unlock: course finished + code/notes to prove it.' },
+  { stat: 'mind', tier: 4, title: 'Publish 6 technical articles', type: 'milestone', difficulty: 'hard', target: 1, description: 'Paced over 6 months, each grounded in something you built or measured. A public body of writing IS the portfolio. Unlock: 6 shipped.' },
+  { stat: 'mind', tier: 4, title: 'Second language to A2/B1', type: 'milestone', difficulty: 'hard', target: 1, description: 'Ties to the Optionality path. Start in month 13. Unlock: level reached or tested.' },
+  { stat: 'mind', tier: 5, title: 'Teach it — course/workshop/mentee', type: 'milestone', difficulty: 'hard', target: 1, description: 'A workshop you run twice teaches you more than the 20 hours you spent learning it. Unlock: delivered to real people.' },
+  { stat: 'mind', tier: 5, title: 'Give a talk publicly', type: 'milestone', difficulty: 'hard', target: 1, description: 'Present to a room. Unlock: delivered.' },
+  { stat: 'mind', tier: 5, title: '24 books (year 2 total)', type: 'milestone', difficulty: 'hard', target: 1, description: 'Keep the ladder going. Unlock: 24 done.' },
+  { stat: 'mind', tier: 6, title: 'Teach or publish what you know', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Capstone. The final proof of understanding — if you can’t explain it to a beginner, you don’t have it yet.' },
 
-  // --- CAREER (right column, x=640) ---
-  {
-    title: 'Launch side income',
-    subtitle: 'earn one real payment',
-    stat: 'career',
-    type: 'milestone',
-    difficulty: 'hard',
-    target: 1,
-    tier: 3,
-    description:
-      'Start with a skill you already have. Build the smallest version that earns one real payment from someone who isn’t obligated to pay you. Validate, then grow.',
-    delay: 0.6,
-    cx: 640,
-    cy: 50,
-  },
-  {
-    title: '+1 network contact',
-    subtitle: 'one touch a week',
-    stat: 'career',
-    type: 'weekly',
-    difficulty: 'normal',
-    target: 1,
-    tier: 2,
-    description:
-      'One meaningful professional touch per week — a message, a coffee, a reconnect. Give before you ask. Unlock: 4+ new/renewed contacts in 30 days.',
-    delay: 0.4,
-    cx: 640,
-    cy: 150,
-  },
-  {
-    title: 'Track every expense',
-    subtitle: '30 days · no judgment',
-    stat: 'career',
-    type: 'daily',
-    difficulty: 'easy',
-    target: 1,
-    tier: 1,
-    description:
-      'Log everything for 30 days — app, spreadsheet, or notes. No judgment, just data. At month end, categorize and the leaks are obvious. Unlock: 30 days, nothing untracked.',
-    delay: 0.2,
-    cx: 640,
-    cy: 250,
-  },
+  // ============================ CAREER ============================
+  { stat: 'career', tier: 1, title: 'Track every expense', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: 'Log everything for 30 days, zero judgment. Categorise at month end; the leaks get obvious. Unlock: 30 days, nothing untracked.' },
+  { stat: 'career', tier: 1, title: 'Set up automatic saving', type: 'milestone', difficulty: 'normal', target: 1, v1: true, description: 'Automate the save on payday — willpower must not be involved. Start at a % that doesn’t hurt. Unlock: the transfer fires without you.' },
+  { stat: 'career', tier: 2, title: 'Document one win per week', type: 'weekly', difficulty: 'easy', target: 1, v1: true, description: 'Quantify: numbers, before/after, impact. The most valuable file you own at review time. Unlock: 12 wins logged.' },
+  { stat: 'career', tier: 2, title: 'Add one network contact', type: 'weekly', difficulty: 'normal', target: 1, v1: true, description: 'One meaningful professional touch a week — give before you ask. Unlock: 4+ contacts in 30 days.' },
+  { stat: 'career', tier: 3, title: 'First payment from a stranger', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Smallest version of a skill you have that earns one unit of currency from someone not obligated to pay. Validate, then scale. Unlock: money received.' },
+  { stat: 'career', tier: 3, title: 'Invest monthly ×3', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Boring, broad, consistent beats clever. Build the buffer first. Unlock: 3 consecutive months.' },
+  { stat: 'career', tier: 3, title: 'Raise, promotion, or better offer', type: 'milestone', difficulty: 'hard', target: 1, description: 'Make the concrete case, or a stronger position elsewhere. Unlock: signed.' },
+  { stat: 'career', tier: 4, title: '6-month emergency fund', type: 'milestone', difficulty: 'hard', target: 1, description: 'The node that converts money into freedom — it’s what lets you say no, leave, or move. Unlock: 6 months of expenses banked.' },
+  { stat: 'career', tier: 4, title: 'Second income stream stabilised', type: 'milestone', difficulty: 'hard', target: 1, description: 'Unlock: 6 months of consistent income.' },
+  { stat: 'career', tier: 4, title: 'Rebuild portfolio / CV / profile', type: 'milestone', difficulty: 'normal', target: 1, description: 'Show the work, don’t describe it — the Mind Tier IV articles slot straight in. Unlock: current and strong.' },
+  { stat: 'career', tier: 5, title: 'Pass a language / qualifying test', type: 'milestone', difficulty: 'hard', target: 1, description: 'Booking the date is the node — studying without one rarely converges. Unlock: certificate in hand.' },
+  { stat: 'career', tier: 5, title: 'Run one full application cycle', type: 'milestone', difficulty: 'hard', target: 1, description: 'Submitted, not "researched." A mediocre application beats a perfect one you never send. Unlock: fully submitted.' },
+  { stat: 'career', tier: 5, title: 'Hold savings across currencies', type: 'milestone', difficulty: 'normal', target: 1, description: 'A 6-month fund in a depreciating currency isn’t 6 months. Unlock: diversified.' },
+  { stat: 'career', tier: 6, title: 'Multiple streams + 6-month runway', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Capstone. More than one source of money, six months banked, and the documents to move if you choose. That’s freedom.' },
 
-  // --- SOUL / SPIRIT (lower-left, x=160) ---
-  {
-    title: '5-min journal',
-    subtitle: 'three lines, daily',
-    stat: 'spirit',
-    type: 'daily',
-    difficulty: 'easy',
-    target: 1,
-    tier: 1,
-    description:
-      'Morning or night. Three lines is enough: what happened, how you feel, what matters today. Unlock: 30 days.',
-    delay: 0.2,
-    cx: 160,
-    cy: 450,
-  },
-  {
-    title: '3 gratitudes',
-    subtitle: 'specific, not generic',
-    stat: 'spirit',
-    type: 'daily',
-    difficulty: 'easy',
-    target: 1,
-    tier: 2,
-    description:
-      'Three specific things — "the coffee this morning, that call with my brother, finishing the report." Rewires attention toward what’s working. Unlock: 30 days.',
-    delay: 0.4,
-    cx: 160,
-    cy: 550,
-  },
-  {
-    title: 'Weekly call home',
-    subtitle: 'one real conversation',
-    stat: 'spirit',
-    type: 'weekly',
-    difficulty: 'normal',
-    target: 1,
-    tier: 3,
-    description: 'One real conversation a week with someone you love. Unlock: 30 days running.',
-    delay: 0.6,
-    cx: 160,
-    cy: 650,
-  },
+  // ============================ SPIRIT ============================
+  { stat: 'spirit', tier: 1, title: '5-minute journal', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: 'Three lines: what happened, how you feel, what matters today. Unlock: 30 days.' },
+  { stat: 'spirit', tier: 2, title: '3 gratitudes', type: 'daily', difficulty: 'easy', target: 1, v1: true, description: 'Specific only — "the coffee this morning, the call with my brother, finishing that report." Specificity rewires attention. Unlock: 30 days.' },
+  { stat: 'spirit', tier: 2, title: 'Time in nature', type: 'weekly', difficulty: 'easy', target: 1, v1: true, description: 'One deliberate block outdoors, no agenda, no phone. Unlock: 4 weeks.' },
+  { stat: 'spirit', tier: 3, title: 'Weekly call to family/friends', type: 'weekly', difficulty: 'normal', target: 1, v1: true, description: 'If people you love are in another country, the weekly call IS the relationship. Unlock: 30 days.' },
+  { stat: 'spirit', tier: 3, title: 'Volunteer monthly', type: 'milestone', difficulty: 'normal', target: 1, v1: true, description: 'Give time, not just money, to something outside yourself. Unlock: 2 consecutive months.' },
+  { stat: 'spirit', tier: 4, title: 'Meditation or prayer, 10 min', type: 'daily', difficulty: 'normal', target: 1, description: 'Ten minutes of stillness. Unlock: 30 days.' },
+  { stat: 'spirit', tier: 4, title: 'Digital sabbath — screen-free day', type: 'weekly', difficulty: 'normal', target: 1, description: 'One screen-free day a week. Unlock: 8 weeks.' },
+  { stat: 'spirit', tier: 4, title: 'Write your annual review', type: 'milestone', difficulty: 'normal', target: 1, description: 'What worked, what didn’t, what you’re becoming. Do it at month 12 and 24. Unlock: written.' },
+  { stat: 'spirit', tier: 5, title: 'Sustained service commitment', type: 'milestone', difficulty: 'hard', target: 1, description: 'Unlock: 6+ months, same place.' },
+  { stat: 'spirit', tier: 5, title: 'Write your personal code', type: 'milestone', difficulty: 'normal', target: 1, description: 'Your values, written down. Unlock: done.' },
+  { stat: 'spirit', tier: 5, title: 'Repair one relationship', type: 'milestone', difficulty: 'hard', target: 1, description: 'Unlock: done, honestly.' },
+  { stat: 'spirit', tier: 6, title: 'Calm under pressure, clear purpose', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Capstone. Setbacks don’t spiral you, and you can state plainly what you’re building toward.' },
 
-  // --- HOBBIES (lower-right, x=640) ---
-  {
-    title: 'Pick a craft',
-    subtitle: 'one thing that pulls you',
-    stat: 'hobby',
-    type: 'milestone',
-    difficulty: 'easy',
-    target: 1,
-    tier: 1,
-    description:
-      'Music, drawing, writing, photography, building — chosen because it pulls you, not because it’s useful. Commit to one for 30 days.',
-    delay: 0.2,
-    cx: 640,
-    cy: 450,
-  },
-  {
-    title: 'Weekly practice',
-    subtitle: 'a protected slot',
-    stat: 'hobby',
-    type: 'weekly',
-    difficulty: 'normal',
-    target: 1,
-    tier: 2,
-    description:
-      'A fixed, protected weekly slot for your craft. Bonus: join a community that does the same thing for accountability and fun. Unlock: 4 weeks running.',
-    delay: 0.4,
-    cx: 640,
-    cy: 550,
-  },
-  {
-    title: 'Finish a project',
-    subtitle: 'complete it · ship it',
-    stat: 'hobby',
-    type: 'milestone',
-    difficulty: 'hard',
-    target: 1,
-    tier: 3,
-    description:
-      'Not "keep practicing" — actually complete a defined thing: a song, a short story, a built object, a small game. Then share it publicly. Unlock: it’s done and out in the world.',
-    delay: 0.6,
-    cx: 640,
-    cy: 650,
-  },
+  // ============================ HOBBY ============================
+  { stat: 'hobby', tier: 1, title: 'Pick ONE creative outlet', type: 'milestone', difficulty: 'easy', target: 1, v1: true, description: 'Music, drawing, writing, photography, building — chosen because it pulls you, not because it’s useful. Unlock: committed 30 days.' },
+  { stat: 'hobby', tier: 2, title: 'Practice weekly', type: 'weekly', difficulty: 'normal', target: 1, v1: true, description: 'A fixed, protected weekly slot. Unlock: 4 weeks.' },
+  { stat: 'hobby', tier: 2, title: 'Join a community', type: 'milestone', difficulty: 'easy', target: 1, v1: true, description: 'People who do the same thing — accountability and fun. Unlock: actively in one.' },
+  { stat: 'hobby', tier: 3, title: 'Finish one project', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Actually complete a defined thing — done, not "in progress." Unlock: done.' },
+  { stat: 'hobby', tier: 3, title: 'Share it publicly', type: 'milestone', difficulty: 'normal', target: 1, v1: true, description: 'Post it, show it, ship it. Unlock: it’s out in the world.' },
+  { stat: 'hobby', tier: 4, title: 'A second, larger project', type: 'milestone', difficulty: 'hard', target: 1, description: 'Unlock: finished.' },
+  { stat: 'hobby', tier: 4, title: 'Collaborate with someone', type: 'milestone', difficulty: 'normal', target: 1, description: 'Unlock: shipped together.' },
+  { stat: 'hobby', tier: 5, title: 'A body of work — 10 pieces', type: 'milestone', difficulty: 'hard', target: 1, description: 'Ten finished pieces. Unlock: 10 done.' },
+  { stat: 'hobby', tier: 5, title: 'Teach a beginner', type: 'milestone', difficulty: 'normal', target: 1, description: 'Unlock: someone learned from you.' },
+  { stat: 'hobby', tier: 6, title: 'A craft that recharges you', type: 'milestone', difficulty: 'hard', target: 1, v1: true, description: 'Capstone. Something you do purely because you love it — it gives energy back instead of taking it. Keep it revenue-free.' },
 ];
 
-// Branch display order for the mobile list view.
 const BRANCH_ORDER: StatType[] = ['body', 'mind', 'career', 'spirit', 'hobby'];
+const TIERS = [1, 2, 3, 4, 5, 6];
 
 function nodeToDraft(n: NodeData): QuestDraft {
   return {
@@ -270,215 +120,102 @@ function nodeToDraft(n: NodeData): QuestDraft {
   };
 }
 
-// ---------------------------------------------------------
-// DESKTOP: spatial skill tree (radial columns from a CORE node)
-// ---------------------------------------------------------
-interface NodeProps extends NodeData {
-  onAddQuest: (q: QuestDraft) => void;
-}
-
-function SkillNode(props: NodeProps) {
-  const { title, subtitle, stat, tier, description, delay = 0, cx, cy, onAddQuest } = props;
-  const config = STATS[stat];
-
-  return (
-    <div className="absolute z-10" style={{ left: cx, top: cy, transform: 'translate(-50%, -50%)' }}>
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay, duration: 0.5, type: 'spring' }}
-        onClick={() => onAddQuest(nodeToDraft(props))}
-        title={`${description}\n\nClick to add this quest.`}
-        className="w-48 sm:w-52 p-3 rounded-lg border text-center cursor-pointer transition-all hover:scale-105 hover:shadow-[0_0_15px_rgba(255,255,255,0.1)] bg-[#15152a] flex flex-col justify-center items-center h-[72px] relative"
-        style={{ borderColor: config.color, boxShadow: `0 0 10px ${config.color}20` }}
-      >
-        <span
-          className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border flex items-center justify-center font-mono text-[8px] font-bold"
-          style={{ borderColor: config.color, color: config.color }}
-        >
-          {TIER_LABEL[tier] ?? tier}
-        </span>
-        <h4 className="font-bold text-sm tracking-tight leading-tight mb-1" style={{ color: config.color }}>
-          {title}
-        </h4>
-        <p className="text-[9px] text-slate-400 uppercase tracking-wider">{subtitle}</p>
-      </motion.div>
-    </div>
-  );
-}
-
-function SpatialTree({ onAddQuest }: { onAddQuest: (q: QuestDraft) => void }) {
-  return (
-    <div className="overflow-x-auto pb-6 hide-scrollbar -mx-6 px-6 sm:-mx-6 sm:px-6">
-      <div className="w-[800px] h-[700px] relative mx-auto shrink-0">
-        {/* SVG Connections */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 800 700">
-          <g strokeWidth="2" fill="none" className="opacity-40">
-            <line x1="400" y1="350" x2="400" y2="250" stroke={STATS.mind.color} />
-            <line x1="400" y1="250" x2="400" y2="150" stroke={STATS.mind.color} />
-            <line x1="400" y1="150" x2="400" y2="50" stroke={STATS.mind.color} />
-
-            <line x1="400" y1="350" x2="160" y2="250" stroke={STATS.body.color} />
-            <line x1="160" y1="250" x2="160" y2="150" stroke={STATS.body.color} />
-            <line x1="160" y1="150" x2="160" y2="50" stroke={STATS.body.color} />
-
-            <line x1="400" y1="350" x2="640" y2="250" stroke={STATS.career.color} />
-            <line x1="640" y1="250" x2="640" y2="150" stroke={STATS.career.color} />
-            <line x1="640" y1="150" x2="640" y2="50" stroke={STATS.career.color} />
-
-            <line x1="400" y1="350" x2="160" y2="450" stroke={STATS.spirit.color} />
-            <line x1="160" y1="450" x2="160" y2="550" stroke={STATS.spirit.color} />
-            <line x1="160" y1="550" x2="160" y2="650" stroke={STATS.spirit.color} />
-
-            <line x1="400" y1="350" x2="640" y2="450" stroke={STATS.hobby.color} />
-            <line x1="640" y1="450" x2="640" y2="550" stroke={STATS.hobby.color} />
-            <line x1="640" y1="550" x2="640" y2="650" stroke={STATS.hobby.color} />
-          </g>
-        </svg>
-
-        {NODES.map((node, i) => (
-          <SkillNode key={i} {...node} onAddQuest={onAddQuest} />
-        ))}
-
-        {/* CORE NODE — the root habit: Fix Sleep */}
-        <div className="absolute z-20" style={{ left: 400, top: 350, transform: 'translate(-50%, -50%)' }}>
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: 'spring', bounce: 0.5 }}
-            onClick={() => onAddQuest(CORE_QUEST)}
-            title="Fix sleep (7–8h) — the root node. Click to add this quest."
-            className="w-24 h-24 rounded-full border-2 border-[#d4af37] bg-[#1a1a2e] flex flex-col items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)] cursor-pointer hover:scale-105 transition-transform text-center px-2"
-          >
-            <span className="text-[#d4af37] font-bold text-xs tracking-wider">FIX SLEEP</span>
-            <span className="text-slate-400 text-[8px] uppercase tracking-widest mt-0.5">7–8h · root</span>
-          </motion.div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------
-// MOBILE: vertical, branch-grouped, tap-friendly list
-// ---------------------------------------------------------
-function MobileNodeCard({ node, onAddQuest }: { node: NodeData; onAddQuest: (q: QuestDraft) => void }) {
+function NodeCard({ node, onAddQuest }: { node: NodeData; onAddQuest: (q: QuestDraft) => void }) {
   const config = STATS[node.stat];
   return (
     <button
       type="button"
       onClick={() => onAddQuest(nodeToDraft(node))}
-      className="relative w-full flex items-stretch gap-3 text-left group"
+      title={`${node.description}\n\nTap to add this quest.`}
+      className="w-full text-left bg-[#1a1a2e] hover:bg-[#1e1e36] active:bg-[#1e1e36] border border-white/5 rounded-md p-2 transition-all group"
+      style={{ borderLeftColor: config.color, borderLeftWidth: 3 }}
     >
-      {/* Tier marker sitting on the connector line */}
-      <span
-        className="mt-2 w-[20px] h-[20px] shrink-0 rounded-full border bg-[#050510] flex items-center justify-center font-mono text-[8px] font-bold z-10"
-        style={{ borderColor: config.color, color: config.color }}
-      >
-        {TIER_LABEL[node.tier] ?? node.tier}
-      </span>
-      <div
-        className="flex-1 bg-[#1a1a2e] group-hover:bg-[#1e1e36] group-active:bg-[#1e1e36] border border-white/5 rounded-lg p-3 transition-all"
-        style={{ borderLeftColor: config.color, borderLeftWidth: 3 }}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <h5 className="font-bold text-sm leading-tight" style={{ color: config.color }}>
-            {node.title}
-          </h5>
-          <Plus className="w-4 h-4 text-slate-600 group-hover:text-white shrink-0" />
-        </div>
-        <p className="text-[10px] text-slate-400 uppercase tracking-wider mt-0.5">{node.subtitle}</p>
-        <div className="flex flex-wrap items-center gap-1.5 mt-1.5 font-mono text-[8px] text-slate-500 uppercase">
-          <span>{node.type}</span>
-          <span>·</span>
-          <span>{node.difficulty}</span>
-          {node.type === 'weekly' && (
-            <>
-              <span>·</span>
-              <span>{node.target}×/week</span>
-            </>
-          )}
-        </div>
+      <div className="flex items-start justify-between gap-1.5">
+        <h5 className="font-semibold text-[11px] leading-tight" style={{ color: config.color }}>
+          {node.title}
+        </h5>
+        <Plus className="w-3 h-3 text-slate-600 group-hover:text-white shrink-0 mt-0.5" />
+      </div>
+      <div className="flex flex-wrap items-center gap-1 mt-1 font-mono text-[7px] text-slate-500 uppercase tracking-wide">
+        <span>{node.type}</span>
+        <span>·</span>
+        <span>{node.difficulty}</span>
+        {node.type === 'weekly' && (
+          <>
+            <span>·</span>
+            <span>{node.target}×/wk</span>
+          </>
+        )}
+        {node.v1 && <span className="text-slate-600 normal-case">· v1</span>}
       </div>
     </button>
   );
 }
 
-function MobileTree({ onAddQuest }: { onAddQuest: (q: QuestDraft) => void }) {
+function BranchColumn({ stat, onAddQuest }: { stat: StatType; onAddQuest: (q: QuestDraft) => void }) {
+  const config = STATS[stat];
+  const branchNodes = NODES.filter((n) => n.stat === stat);
   return (
-    <div className="space-y-6">
-      {/* Playbook rules hint */}
-      <p className="font-mono text-[9px] text-slate-500 leading-relaxed text-center px-2">
-        Tap a node to add it as a quest. Unlock a node with{' '}
-        <span className="text-[#d4af37]">30 consistent days</span> — and run{' '}
-        <span className="text-[#d4af37]">no more than 3 at once</span>.
-      </p>
+    <div>
+      {/* Branch header */}
+      <div className="flex items-center gap-2 mb-1 pb-1.5 border-b" style={{ borderColor: `${config.color}40` }}>
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: config.color }} />
+        <h4 className="font-serif text-sm font-bold uppercase tracking-widest" style={{ color: config.color }}>
+          {config.name}
+        </h4>
+      </div>
+      <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mb-3">{config.covers}</p>
 
-      {/* CORE — root habit */}
-      <button
-        type="button"
-        onClick={() => onAddQuest(CORE_QUEST)}
-        className="w-full flex items-center gap-3 bg-gradient-to-r from-[#1a1a2e] to-[#15152a] border-2 border-[#d4af37]/50 rounded-xl p-3.5 shadow-[0_0_18px_rgba(212,175,55,0.18)] text-left active:scale-[0.99] transition-transform"
-      >
-        <div className="w-11 h-11 rounded-full border-2 border-[#d4af37] bg-[#050510] flex items-center justify-center shrink-0 glow-active">
-          <Moon className="w-5 h-5 text-[#d4af37]" />
-        </div>
-        <div className="flex-1">
-          <h4 className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-wider">Fix Sleep · Root</h4>
-          <p className="text-[10px] text-slate-400 leading-snug mt-0.5">
-            7–8h on a consistent schedule. Start here — it powers every branch.
-          </p>
-        </div>
-        <Plus className="w-4 h-4 text-[#d4af37] shrink-0" />
-      </button>
-
-      {/* Branches */}
-      {BRANCH_ORDER.map((branch) => {
-        const config = STATS[branch];
-        const branchNodes = NODES.filter((n) => n.stat === branch).sort((a, b) => a.tier - b.tier);
-        return (
-          <div key={branch}>
-            {/* Branch header */}
-            <div className="flex items-center gap-2 mb-2.5 px-0.5">
-              <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: config.color }} />
-              <h4 className="font-serif text-sm font-bold uppercase tracking-widest" style={{ color: config.color }}>
-                {config.name}
-              </h4>
-              <span className="font-mono text-[8px] text-slate-600 uppercase tracking-wider truncate">
-                {config.covers}
-              </span>
-            </div>
-
-            {/* Tier-ordered nodes with a vertical connector */}
-            <div className="relative">
-              <div
-                className="absolute left-[9px] top-3 bottom-3 w-px"
-                style={{ backgroundColor: `${config.color}40` }}
-              />
-              <div className="space-y-2">
-                {branchNodes.map((node) => (
-                  <MobileNodeCard key={node.title} node={node} onAddQuest={onAddQuest} />
+      {/* Tier-grouped nodes */}
+      <div className="space-y-3">
+        {TIERS.map((tier) => {
+          const tierNodes = branchNodes.filter((n) => n.tier === tier);
+          if (tierNodes.length === 0) return null;
+          return (
+            <div key={tier}>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span
+                  className="w-4 h-4 rounded-full border bg-[#050510] flex items-center justify-center font-mono text-[7px] font-bold shrink-0"
+                  style={{ borderColor: config.color, color: config.color }}
+                >
+                  {TIER_LABEL[tier]}
+                </span>
+                <span className="font-mono text-[7px] text-slate-600 uppercase tracking-widest">{TIER_NAME[tier]}</span>
+              </div>
+              <div className="space-y-1.5">
+                {tierNodes.map((node) => (
+                  <NodeCard key={node.title} node={node} onAddQuest={onAddQuest} />
                 ))}
               </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export default function TaskSkillTree({ onAddQuest }: { onAddQuest: (q: QuestDraft) => void }) {
   return (
-    <>
-      {/* Phones: readable vertical branch list */}
-      <div className="sm:hidden">
-        <MobileTree onAddQuest={onAddQuest} />
+    <div>
+      {/* Rules hint */}
+      <p className="font-mono text-[9px] text-slate-500 leading-relaxed text-center px-2 mb-5">
+        Tap a node to add it as a quest. Unlock after{' '}
+        <span className="text-[#d4af37]">30 consistent days</span> · run{' '}
+        <span className="text-[#d4af37]">no more than 3 new nodes at once</span> · never zero.
+        <br className="hidden sm:block" />
+        <span className="text-slate-600">
+          Grind order: Sleep → Read + Track money → Strength + Skill → Deep work + 5K → Ship + Earn → Bank + Publish →
+          Certify + Invest → Teach + Apply.
+        </span>
+      </p>
+
+      {/* Branch columns × tier rows — scales to the full campaign on every screen */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-6">
+        {BRANCH_ORDER.map((stat) => (
+          <BranchColumn key={stat} stat={stat} onAddQuest={onAddQuest} />
+        ))}
       </div>
-      {/* Tablets & desktop: spatial radial tree */}
-      <div className="hidden sm:block">
-        <SpatialTree onAddQuest={onAddQuest} />
-      </div>
-    </>
+    </div>
   );
 }

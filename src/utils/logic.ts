@@ -60,19 +60,21 @@ export function getPreviousWeekMonday(dateStr: string): string {
 // ---------------------------------------------------------
 // XP CALCULATION
 // ---------------------------------------------------------
+// XP values per the Life Skill Tree v2 tables.
 const DIFFICULTY_XP: Record<QuestDifficulty, number> = {
   easy: 10,
-  normal: 20,
-  hard: 35,
+  normal: 25,
+  hard: 50,
 };
 
 const TYPE_MULTIPLIER: Record<QuestType, number> = {
   daily: 1,
   weekly: 1.5,
-  milestone: 4,
+  milestone: 3,
 };
 
-const CLASS_BONUS = 1.25;
+// Class affinity: +20% on the class's stat.
+const CLASS_BONUS = 1.2;
 
 export function calculateQuestXp(
   difficulty: QuestDifficulty,
@@ -89,8 +91,13 @@ export function calculateQuestXp(
 
 // ---------------------------------------------------------
 // LEVELS & TITLES
-// Levelling curve: 100 XP for the first level-up, then +25 XP each level.
+// Levelling curve per v2: each level costs 100 × 1.25^(level-1) XP, so the
+// grind compounds the way the campaign's progression table assumes.
 // ---------------------------------------------------------
+function levelCost(level: number): number {
+  return Math.round(100 * Math.pow(1.25, level - 1));
+}
+
 export function getLevelAndProgress(totalXp: number): {
   level: number;
   currentXp: number;
@@ -98,24 +105,26 @@ export function getLevelAndProgress(totalXp: number): {
 } {
   let level = 1;
   let remaining = Math.max(0, totalXp);
-  let cost = 100;
+  let cost = levelCost(level);
 
   while (remaining >= cost) {
     remaining -= cost;
     level++;
-    cost = 100 + (level - 1) * 25;
+    cost = levelCost(level);
   }
 
   return { level, currentXp: remaining, nextLevelCost: cost };
 }
 
+// Title ladder aligned to the v2 progression checkpoints
+// (~L8–10 by month 3, ~L13–15 by month 6, ~L18–19 by month 12, ~L22–24 by month 24).
 export function getCharacterTitle(level: number): string {
-  if (level >= 30) return 'Ascended Legend';
-  if (level >= 20) return 'Grandmaster';
-  if (level >= 15) return 'Champion';
-  if (level >= 10) return 'Veteran';
-  if (level >= 5) return 'Adventurer';
-  if (level >= 2) return 'Apprentice';
+  if (level >= 24) return 'Hero';
+  if (level >= 19) return 'Champion';
+  if (level >= 15) return 'Veteran';
+  if (level >= 10) return 'Hardened';
+  if (level >= 6) return 'Seasoned';
+  if (level >= 3) return 'Initiate';
   return 'Novice';
 }
 

@@ -27,6 +27,7 @@ const TYPES: QuestType[] = ['daily', 'weekly', 'milestone'];
 
 export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: AddQuestModalProps) {
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [stat, setStat] = useState<StatType>('body');
   const [difficulty, setDifficulty] = useState<QuestDifficulty>('normal');
   const [type, setType] = useState<QuestType>('daily');
@@ -38,6 +39,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
 
   const reset = () => {
     setTitle('');
+    setDescription('');
     setStat('body');
     setDifficulty('normal');
     setType('daily');
@@ -48,12 +50,14 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) return;
+    const desc = description.trim();
     onAdd({
       title: trimmed,
       stat,
       difficulty,
       type,
       target: type === 'weekly' ? Math.max(1, target) : 1,
+      ...(desc ? { description: desc } : {}),
     });
     reset();
     onClose();
@@ -88,6 +92,21 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans"
+            />
+          </div>
+
+          {/* DESCRIPTION (optional) */}
+          <div>
+            <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+              Notes <span className="text-slate-600 lowercase tracking-normal">· optional</span>
+            </label>
+            <textarea
+              maxLength={280}
+              rows={2}
+              placeholder="Guidance, the unlock criteria, or why this matters…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-2.5 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans resize-none leading-relaxed"
             />
           </div>
 

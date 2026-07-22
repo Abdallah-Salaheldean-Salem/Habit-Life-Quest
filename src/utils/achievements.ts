@@ -106,4 +106,11 @@ export const ACHIEVEMENTS: Achievement[] = [
     description: 'Log 100 quest completions.',
     check: (ctx) => ctx.ledger.length >= 100,
   },
+  {
+    id: 'iron_will',
+    numIcon: 'XII',
+    title: 'Iron Will',
+    description: 'Reach a 30-day streak on any quest — a node unlocked.',
+    check: (ctx) => bestQuestStreak(ctx) >= 30,
+  },
 ];
