@@ -187,6 +187,67 @@ export function getWeeklyQuestStreak(
 }
 
 // ---------------------------------------------------------
+// UNLOCK / MASTERY PROGRESS
+// The playbook's core rule: a node "unlocks" only after 30 consistent days
+// (4 weeks for weekly quests; a single completion for milestones). We measure
+// cumulative consistency (distinct qualifying days/weeks), which is forgiving
+// of the occasional miss — the streak still lives separately.
+// ---------------------------------------------------------
+export interface UnlockProgress {
+  current: number;
+  target: number;
+  percent: number;
+  unlocked: boolean;
+  unit: string;
+}
+
+export function getUnlockProgress(
+  quest: Quest,
+  ledger: LedgerEntry[],
+  currentDate: string,
+): UnlockProgress {
+  const completions = ledger.filter((e) => e.questId === quest.id && e.date <= currentDate);
+
+  if (quest.type === 'milestone') {
+    const unlocked = completions.length > 0;
+    return { current: unlocked ? 1 : 0, target: 1, percent: unlocked ? 100 : 0, unlocked, unit: 'done' };
+  }
+
+  if (quest.type === 'weekly') {
+    const target = 4; // 4 weeks on target, per the playbook
+    const weekCounts = new Map<string, number>();
+    completions.forEach((e) => {
+      const monday = getMonday(e.date);
+      weekCounts.set(monday, (weekCounts.get(monday) || 0) + 1);
+    });
+    let metWeeks = 0;
+    weekCounts.forEach((count) => {
+      if (count >= quest.target) metWeeks++;
+    });
+    const current = Math.min(metWeeks, target);
+    return {
+      current,
+      target,
+      percent: Math.round((current / target) * 100),
+      unlocked: current >= target,
+      unit: 'weeks',
+    };
+  }
+
+  // daily: distinct days completed, toward 30
+  const target = 30;
+  const days = new Set(completions.map((e) => e.date));
+  const current = Math.min(days.size, target);
+  return {
+    current,
+    target,
+    percent: Math.round((current / target) * 100),
+    unlocked: current >= target,
+    unit: 'days',
+  };
+}
+
+// ---------------------------------------------------------
 // MOCK / SEED DATA
 // A small, deterministic starter save so a fresh visitor sees a living
 // character rather than an empty page.
