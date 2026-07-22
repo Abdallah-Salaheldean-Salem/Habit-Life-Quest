@@ -45,6 +45,7 @@ import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
 import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
+import MasteryCelebration from './components/MasteryCelebration';
 import { ACHIEVEMENTS } from './utils/achievements';
 
 // Real-world Supabase Sync client and service
@@ -113,6 +114,8 @@ export default function App() {
   const [editClass, setEditClass] = useState<UserClass>('scholar');
   const [hoveredAchievement, setHoveredAchievement] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  // Full-screen celebration shown when a quest crosses into "mastered".
+  const [mastery, setMastery] = useState<{ title: string; subtitle: string } | null>(null);
 
   // Cloud Sync Real State
   const [isSyncOpen, setIsSyncOpen] = useState(false);
@@ -575,6 +578,22 @@ export default function App() {
     );
   };
 
+  // Fires the mastery celebration only when a new completion pushes a quest
+  // across its unlock threshold (was not unlocked before, is now).
+  const maybeCelebrateMastery = (q: Quest, newEntry: LedgerEntry) => {
+    const before = getUnlockProgress(q, ledger, currentMockDate).unlocked;
+    const after = getUnlockProgress(q, [...ledger, newEntry], currentMockDate).unlocked;
+    if (!before && after) {
+      const subtitle =
+        q.type === 'weekly'
+          ? 'Mastered — four weeks on target.'
+          : q.type === 'milestone'
+          ? 'Milestone conquered.'
+          : 'Mastered — thirty days of consistency.';
+      setMastery({ title: q.title, subtitle });
+    }
+  };
+
   // "Max 3 active nodes" guardrail from the playbook: count quests still being
   // built (active, not yet unlocked) vs. those already mastered.
   const masteredCount = quests.filter(
@@ -716,6 +735,7 @@ export default function App() {
           type: q.type,
         };
         setLedger([...ledger, newEntry]);
+        maybeCelebrateMastery(q, newEntry);
         showToast(`Earned +${xp} XP! "${q.title}" logged`);
       }
     } else if (q.type === 'weekly') {
@@ -743,6 +763,7 @@ export default function App() {
           type: q.type,
         };
         setLedger([...ledger, newEntry]);
+        maybeCelebrateMastery(q, newEntry);
         showToast(`Earned +${xp} XP! "${q.title}" logged today`);
       }
     } else if (q.type === 'milestone') {
@@ -764,6 +785,7 @@ export default function App() {
           type: q.type,
         };
         setLedger([...ledger, newEntry]);
+        maybeCelebrateMastery(q, newEntry);
         showToast(`Milestone Complete! Earned +${xp} XP!`);
       }
     }
@@ -1256,6 +1278,15 @@ export default function App() {
           <Sparkles className="w-4 h-4 text-[#d4af37] animate-pulse" />
           <span>{toastMessage}</span>
         </div>
+      )}
+
+      {/* Mastery celebration overlay */}
+      {mastery && (
+        <MasteryCelebration
+          title={mastery.title}
+          subtitle={mastery.subtitle}
+          onDone={() => setMastery(null)}
+        />
       )}
 
       {/* HEADER BAR */}
