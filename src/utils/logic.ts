@@ -268,8 +268,10 @@ export function getMockSaveData(dateStr: string): {
   ledger: LedgerEntry[];
 } {
   const userClass: UserClass = 'scholar';
-  const createdAt = getDaysAgoStr(dateStr, 30);
+  const createdAt = getDaysAgoStr(dateStr, 45);
 
+  // Titles match the skill-tree nodes exactly so the tree's progressive reveal
+  // and per-node status ("mastered" / "on board") line up with the save.
   const mk = (
     id: string,
     title: string,
@@ -281,110 +283,51 @@ export function getMockSaveData(dateStr: string): {
     description: string,
   ): Quest => ({ id, title, stat, difficulty, type, target, active: true, createdAt, tier, description });
 
-  // The playbook's opening build (sleep + body + mind + money), plus a couple
-  // of Tier I nodes from Soul and Hobbies to round out the character.
   const quests: Quest[] = [
-    mk(
-      'mock_sleep',
-      'Fix sleep (7–8h)',
-      'body',
-      'normal',
-      'daily',
-      1,
-      0,
-      'The root node. Fixed wake time daily (±30 min), bed alarm 8h before, no screens 30 min prior, no caffeine after 2 PM, morning daylight. Unlock: 30 days.',
-    ),
-    mk(
-      'mock_read',
-      'Read 10 pages',
-      'mind',
-      'easy',
-      'daily',
-      1,
-      1,
-      'Start the Reading Ladder (Atomic Habits first). ~15 min. Never zero — one page on a bad day. Unlock: 30 days.',
-    ),
-    mk(
-      'mock_expenses',
-      'Track every expense',
-      'career',
-      'easy',
-      'daily',
-      1,
-      1,
-      'Log everything for 30 days — no judgment, just data. The leaks become obvious. Unlock: 30 days, nothing untracked.',
-    ),
-    mk(
-      'mock_strength',
-      'Strength train',
-      'body',
-      'normal',
-      'weekly',
-      3,
-      2,
-      'Full-body, 3 non-consecutive days. Compound lifts, 3×5–8 reps, progress a little each time. Unlock: ~12 sessions.',
-    ),
-    mk(
-      'mock_journal',
-      '5-min journal',
-      'spirit',
-      'easy',
-      'daily',
-      1,
-      1,
-      'Morning or night. Three lines: what happened, how you feel, what matters today. Unlock: 30 days.',
-    ),
-    mk(
-      'mock_craft',
-      'Pick a craft',
-      'hobby',
-      'easy',
-      'milestone',
-      1,
-      1,
-      'One creative outlet chosen because it pulls you, not because it’s useful. Commit for 30 days.',
-    ),
+    // Season 1 opening build — seeded as already mastered (31 days), so their
+    // branches have revealed Tier II.
+    mk('mock_sleep', 'Sleep 7–8h, fixed wake', 'body', 'normal', 'daily', 1, 1, 'Fixed wake time first — it anchors everything. Daylight within 30 min of waking, no caffeine after 2 PM. Unlock: 30 days within ±30 min.'),
+    mk('mock_read', 'Read 10 pages', 'mind', 'easy', 'daily', 1, 1, 'Start the Reading Ladder (Atomic Habits first). ~15 min. Never zero — one page on a bad day. Unlock: 30 days.'),
+    mk('mock_expenses', 'Track every expense', 'career', 'easy', 'daily', 1, 1, 'Log everything for 30 days — no judgment, just data. The leaks become obvious. Unlock: 30 days, nothing untracked.'),
+    // Tier II node newly revealed and being built.
+    mk('mock_strength', 'Strength train', 'body', 'normal', 'weekly', 3, 2, 'Full-body, 3 non-consecutive days. Compound lifts, 3×5–8 reps, progress a little each time. Unlock: 12 sessions.'),
+    // Branches still at Tier I (not yet mastered) — Tier II stays locked.
+    mk('mock_journal', '5-minute journal', 'spirit', 'easy', 'daily', 1, 1, 'Three lines: what happened, how you feel, what matters today. Unlock: 30 days.'),
+    mk('mock_craft', 'Pick ONE creative outlet', 'hobby', 'easy', 'milestone', 1, 1, 'One creative outlet chosen because it pulls you, not because it’s useful. Unlock: committed 30 days.'),
   ];
 
   const ledger: LedgerEntry[] = [];
-
-  // Deterministic completion pattern over the last 14 days for the dailies,
-  // plus a couple of weekly logs, so streaks and charts have something to show.
-  const dailyQuests = quests.filter((q) => q.type === 'daily');
-  for (let i = 13; i >= 0; i--) {
-    const date = getDaysAgoStr(dateStr, i);
-    dailyQuests.forEach((q, qi) => {
-      // Skip a few days per quest to create realistic (imperfect) streaks.
-      const skip = (i + qi) % 5 === 0;
-      if (skip) return;
-      ledger.push({
-        id: `mock_${q.id}_${date}`,
-        date,
-        questId: q.id,
-        questTitle: q.title,
-        xp: calculateQuestXp(q.difficulty, q.type, q.stat, userClass),
-        stat: q.stat,
-        difficulty: q.difficulty,
-        type: q.type,
-      });
+  const log = (q: Quest, date: string) =>
+    ledger.push({
+      id: `mock_${q.id}_${date}`,
+      date,
+      questId: q.id,
+      questTitle: q.title,
+      xp: calculateQuestXp(q.difficulty, q.type, q.stat, userClass),
+      stat: q.stat,
+      difficulty: q.difficulty,
+      type: q.type,
     });
+
+  const byId = (id: string) => quests.find((q) => q.id === id)!;
+
+  // Opening three dailies: 31 straight days → mastered (reveals their Tier II).
+  const opening = ['mock_sleep', 'mock_read', 'mock_expenses'].map(byId);
+  for (let i = 30; i >= 0; i--) {
+    const date = getDaysAgoStr(dateStr, i);
+    opening.forEach((q) => log(q, date));
   }
 
-  // Weekly quest completions across the current week.
-  const strength = quests.find((q) => q.id === 'mock_strength')!;
-  [1, 3, 5].forEach((offset) => {
-    const date = getDaysAgoStr(dateStr, offset);
-    ledger.push({
-      id: `mock_${strength.id}_${date}`,
-      date,
-      questId: strength.id,
-      questTitle: strength.title,
-      xp: calculateQuestXp(strength.difficulty, strength.type, strength.stat, userClass),
-      stat: strength.stat,
-      difficulty: strength.difficulty,
-      type: strength.type,
-    });
-  });
+  // Journal: ~12 recent days (in progress, not mastered).
+  const journal = byId('mock_journal');
+  for (let i = 13; i >= 0; i--) {
+    if (i % 6 === 0) continue;
+    log(journal, getDaysAgoStr(dateStr, i));
+  }
+
+  // Strength: a few sessions across two weeks (in progress, not mastered).
+  const strength = byId('mock_strength');
+  [1, 3, 5, 8, 10].forEach((offset) => log(strength, getDaysAgoStr(dateStr, offset)));
 
   return { userName: 'Abdallah', userClass, quests, ledger };
 }

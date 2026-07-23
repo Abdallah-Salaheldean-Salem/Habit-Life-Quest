@@ -603,6 +603,14 @@ export default function App() {
     (q) => q.active && !getUnlockProgress(q, ledger, currentMockDate).unlocked,
   ).length;
 
+  // Titles of quests already on the board, and of those already mastered —
+  // drives the skill tree's progressive reveal (a tier unlocks once a node
+  // from the tier before it is mastered).
+  const activeTitles = new Set(quests.filter((q) => q.active).map((q) => q.title));
+  const masteredTitles = new Set(
+    quests.filter((q) => getUnlockProgress(q, ledger, currentMockDate).unlocked).map((q) => q.title),
+  );
+
   // Check achievements unlocks
   const unlockedAchievementsCount = ACHIEVEMENTS.reduce((count, ach) => {
     const isUnlocked = ach.check({
@@ -1788,7 +1796,12 @@ export default function App() {
               </div>
 
               {questViewMode === 'tree' ? (
-                <TaskSkillTree onAddQuest={handleAddQuest} onLoadSeason={handleLoadSeason} />
+                <TaskSkillTree
+                  onAddQuest={handleAddQuest}
+                  onLoadSeason={handleLoadSeason}
+                  masteredTitles={masteredTitles}
+                  activeTitles={activeTitles}
+                />
               ) : (
                 <>
                   {/* CATEGORY FILTER */}
