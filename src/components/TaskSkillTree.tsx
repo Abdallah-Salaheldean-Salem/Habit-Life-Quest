@@ -383,6 +383,45 @@ function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], 
   );
 }
 
+const BRANCH_ANGLE: Record<StatType, number> = {
+  body: 215, // up-left
+  mind: 270, // up
+  career: 325, // up-right
+  spirit: 145, // down-left
+  hobby: 35, // down-right
+};
+
+// The central hub the branches radiate from, with colored spokes pointing
+// toward each branch — restores the original tree's radial feel.
+function CoreHub() {
+  return (
+    <div className="relative flex items-center justify-center min-h-[180px]">
+      <svg className="absolute w-56 h-56 pointer-events-none" viewBox="-100 -100 200 200">
+        {BRANCH_ORDER.map((s) => {
+          const a = (BRANCH_ANGLE[s] * Math.PI) / 180;
+          return (
+            <line
+              key={s}
+              x1={Math.cos(a) * 36}
+              y1={Math.sin(a) * 36}
+              x2={Math.cos(a) * 96}
+              y2={Math.sin(a) * 96}
+              stroke={STATS[s].color}
+              strokeOpacity="0.4"
+              strokeWidth="2"
+            />
+          );
+        })}
+      </svg>
+      <div className="relative w-24 h-24 rounded-full border-2 border-[#d4af37] bg-[#15152a] flex flex-col items-center justify-center shadow-[0_0_25px_rgba(212,175,55,0.4)]">
+        <div className="w-5 h-5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active" />
+        <span className="font-serif text-[9px] text-[#d4af37] uppercase tracking-widest mt-2">Core</span>
+        <span className="font-mono text-[7px] text-slate-500 uppercase tracking-wider mt-0.5">start here</span>
+      </div>
+    </div>
+  );
+}
+
 export default function TaskSkillTree({
   onAddQuest,
   onLoadSeason,
@@ -412,8 +451,30 @@ export default function TaskSkillTree({
         </span>
       </p>
 
-      {/* Branch columns × tier rows — reveals progressively as nodes are mastered */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-6">
+      {/* DESKTOP: radial layout — branches arranged around a central core hub */}
+      <div className="hidden lg:grid grid-cols-3 gap-x-5 gap-y-8 items-start">
+        <div className="col-start-1 row-start-1">
+          <BranchColumn stat="body" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
+        </div>
+        <div className="col-start-2 row-start-1">
+          <BranchColumn stat="mind" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
+        </div>
+        <div className="col-start-3 row-start-1">
+          <BranchColumn stat="career" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
+        </div>
+        <div className="col-start-2 row-start-2 self-center">
+          <CoreHub />
+        </div>
+        <div className="col-start-1 row-start-3">
+          <BranchColumn stat="spirit" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
+        </div>
+        <div className="col-start-3 row-start-3">
+          <BranchColumn stat="hobby" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
+        </div>
+      </div>
+
+      {/* MOBILE / TABLET: stacked branch list (radial doesn't fit narrow screens) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6 lg:hidden">
         {BRANCH_ORDER.map((stat) => (
           <BranchColumn
             key={stat}
