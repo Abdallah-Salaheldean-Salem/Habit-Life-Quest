@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Swords } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Swords, Lock, Check } from 'lucide-react';
 import { StatType, STATS, QuestDifficulty, QuestType, QuestDraft } from '../types';
 
 const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: '★' };
@@ -120,8 +120,20 @@ function nodeToDraft(n: NodeData): QuestDraft {
   };
 }
 
-function NodeCard({ node, onAddQuest }: { node: NodeData; onAddQuest: (q: QuestDraft) => void }) {
+type NodeStatus = 'mastered' | 'active' | 'available';
+
+function NodeCard({
+  node,
+  status,
+  onAddQuest,
+}: {
+  node: NodeData;
+  status: NodeStatus;
+  onAddQuest: (q: QuestDraft) => void;
+}) {
   const config = STATS[node.stat];
+  const mastered = status === 'mastered';
+  const active = status === 'active';
   return (
     <button
       type="button"
@@ -134,7 +146,13 @@ function NodeCard({ node, onAddQuest }: { node: NodeData; onAddQuest: (q: QuestD
         <h5 className="font-semibold text-[11px] leading-tight" style={{ color: config.color }}>
           {node.title}
         </h5>
-        <Plus className="w-3 h-3 text-slate-600 group-hover:text-white shrink-0 mt-0.5" />
+        {mastered ? (
+          <span title="Mastered" className="shrink-0 mt-0.5">
+            <Check className="w-3 h-3 text-[#d4af37]" />
+          </span>
+        ) : (
+          <Plus className="w-3 h-3 text-slate-600 group-hover:text-white shrink-0 mt-0.5" />
+        )}
       </div>
       <div className="flex flex-wrap items-center gap-1 mt-1 font-mono text-[7px] text-slate-500 uppercase tracking-wide">
         <span>{node.type}</span>
@@ -146,15 +164,70 @@ function NodeCard({ node, onAddQuest }: { node: NodeData; onAddQuest: (q: QuestD
             <span>{node.target}×/wk</span>
           </>
         )}
-        {node.v1 && <span className="text-slate-600 normal-case">· v1</span>}
+        {mastered && <span className="text-[#d4af37] normal-case">· mastered</span>}
+        {active && <span className="text-emerald-400/70 normal-case">· on board</span>}
+        {!mastered && !active && node.v1 && <span className="text-slate-600 normal-case">· v1</span>}
       </div>
     </button>
   );
 }
 
-function BranchColumn({ stat, onAddQuest }: { stat: StatType; onAddQuest: (q: QuestDraft) => void }) {
+function LockedTier({ config, tier, prevTierName, count }: { config: (typeof STATS)[StatType]; tier: number; prevTierName: string; count: number }) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5 mb-1.5 opacity-50">
+        <span className="w-4 h-4 rounded-full border border-white/15 bg-[#050510] flex items-center justify-center shrink-0">
+          <Lock className="w-2 h-2 text-slate-500" />
+        </span>
+        <span className="font-mono text-[7px] text-slate-600 uppercase tracking-widest">
+          {TIER_LABEL[tier]} · {TIER_NAME[tier]}
+        </span>
+      </div>
+      <div className="bg-[#0c0c1b]/60 border border-dashed border-white/10 rounded-md p-2.5 text-center">
+        <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider leading-relaxed">
+          {count} node{count > 1 ? 's' : ''} locked
+        </p>
+        <p className="font-mono text-[8px] text-slate-600 leading-relaxed mt-0.5">
+          Master a <span style={{ color: config.color }}>{prevTierName}</span> node to reveal
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function BranchColumn({
+  stat,
+  onAddQuest,
+  masteredTitles,
+  activeTitles,
+}: {
+  stat: StatType;
+  onAddQuest: (q: QuestDraft) => void;
+  masteredTitles: Set<string>;
+  activeTitles: Set<string>;
+}) {
   const config = STATS[stat];
   const branchNodes = NODES.filter((n) => n.stat === stat);
+
+  // Progressive reveal: a tier is "cleared" once at least one of its nodes is
+  // mastered. Tier I is always available; the frontier is the first uncleared
+  // tier. Tiers up to the frontier are shown; the very next one is teased as
+  // locked; anything deeper stays hidden until you get there.
+  let cleared = 0;
+  for (const tier of TIERS) {
+    const tierNodes = branchNodes.filter((n) => n.tier === tier);
+    if (tierNodes.length === 0) continue;
+    if (tierNodes.some((n) => masteredTitles.has(n.title))) cleared = tier;
+    else break;
+  }
+  const frontier = cleared + 1;
+
+  const statusOf = (n: NodeData): NodeStatus =>
+    masteredTitles.has(n.title) ? 'mastered' : activeTitles.has(n.title) ? 'active' : 'available';
+
+  // The first tier beyond the frontier that actually has nodes (the locked tease).
+  const lockedTier = TIERS.find((t) => t > frontier && branchNodes.some((n) => n.tier === t));
+
   return (
     <div>
       {/* Branch header */}
@@ -166,9 +239,9 @@ function BranchColumn({ stat, onAddQuest }: { stat: StatType; onAddQuest: (q: Qu
       </div>
       <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mb-3">{config.covers}</p>
 
-      {/* Tier-grouped nodes */}
+      {/* Revealed tiers */}
       <div className="space-y-3">
-        {TIERS.map((tier) => {
+        {TIERS.filter((t) => t <= frontier).map((tier) => {
           const tierNodes = branchNodes.filter((n) => n.tier === tier);
           if (tierNodes.length === 0) return null;
           return (
@@ -184,12 +257,22 @@ function BranchColumn({ stat, onAddQuest }: { stat: StatType; onAddQuest: (q: Qu
               </div>
               <div className="space-y-1.5">
                 {tierNodes.map((node) => (
-                  <NodeCard key={node.title} node={node} onAddQuest={onAddQuest} />
+                  <NodeCard key={node.title} node={node} status={statusOf(node)} onAddQuest={onAddQuest} />
                 ))}
               </div>
             </div>
           );
         })}
+
+        {/* Locked tease for the next tier */}
+        {lockedTier && (
+          <LockedTier
+            config={config}
+            tier={lockedTier}
+            prevTierName={TIER_NAME[frontier]}
+            count={branchNodes.filter((n) => n.tier === lockedTier).length}
+          />
+        )}
       </div>
     </div>
   );
@@ -303,9 +386,13 @@ function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], 
 export default function TaskSkillTree({
   onAddQuest,
   onLoadSeason,
+  masteredTitles,
+  activeTitles,
 }: {
   onAddQuest: (q: QuestDraft) => void;
   onLoadSeason: (drafts: QuestDraft[], label: string) => void;
+  masteredTitles: Set<string>;
+  activeTitles: Set<string>;
 }) {
   return (
     <div>
@@ -314,9 +401,10 @@ export default function TaskSkillTree({
 
       {/* Rules hint */}
       <p className="font-mono text-[9px] text-slate-500 leading-relaxed text-center px-2 mb-5">
-        Tap a node to add it as a quest. Unlock after{' '}
-        <span className="text-[#d4af37]">30 consistent days</span> · run{' '}
-        <span className="text-[#d4af37]">no more than 3 new nodes at once</span> · never zero.
+        Tap a node to add it as a quest. Deeper tiers reveal as you{' '}
+        <span className="text-[#d4af37]">master</span> the nodes before them — unlock after{' '}
+        <span className="text-[#d4af37]">30 consistent days</span>, run{' '}
+        <span className="text-[#d4af37]">no more than 3 at once</span>, never zero.
         <br className="hidden sm:block" />
         <span className="text-slate-600">
           Grind order: Sleep → Read + Track money → Strength + Skill → Deep work + 5K → Ship + Earn → Bank + Publish →
@@ -324,10 +412,16 @@ export default function TaskSkillTree({
         </span>
       </p>
 
-      {/* Branch columns × tier rows — scales to the full campaign on every screen */}
+      {/* Branch columns × tier rows — reveals progressively as nodes are mastered */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-x-4 gap-y-6">
         {BRANCH_ORDER.map((stat) => (
-          <BranchColumn key={stat} stat={stat} onAddQuest={onAddQuest} />
+          <BranchColumn
+            key={stat}
+            stat={stat}
+            onAddQuest={onAddQuest}
+            masteredTitles={masteredTitles}
+            activeTitles={activeTitles}
+          />
         ))}
       </div>
     </div>
