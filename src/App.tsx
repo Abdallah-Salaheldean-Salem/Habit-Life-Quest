@@ -791,8 +791,12 @@ export default function App() {
     }
   };
 
-  // Add a new quest
+  // Add a new quest (skips an exact-title duplicate that's already on the board)
   const handleAddQuest = (questData: Omit<Quest, 'id' | 'createdAt' | 'active'>) => {
+    if (quests.some((q) => q.active && q.title === questData.title)) {
+      showToast(`"${questData.title}" is already on your board.`);
+      return;
+    }
     const newQuest: Quest = {
       ...questData,
       id: `quest_${Date.now()}`,
@@ -801,6 +805,28 @@ export default function App() {
     };
     setQuests([...quests, newQuest]);
     showToast(`Drafted new Quest: "${newQuest.title}"`);
+  };
+
+  // Load a whole season's three nodes at once (skipping any already active).
+  const handleLoadSeason = (
+    drafts: Omit<Quest, 'id' | 'createdAt' | 'active'>[],
+    label: string,
+  ) => {
+    const activeTitles = new Set(quests.filter((q) => q.active).map((q) => q.title));
+    const toAdd = drafts.filter((d) => !activeTitles.has(d.title));
+    if (toAdd.length === 0) {
+      showToast(`${label} is already on your board.`);
+      return;
+    }
+    const now = Date.now();
+    const newQuests: Quest[] = toAdd.map((d, i) => ({
+      ...d,
+      id: `quest_${now}_${i}`,
+      createdAt: currentMockDate,
+      active: true,
+    }));
+    setQuests([...quests, ...newQuests]);
+    showToast(`${label} loaded — ${newQuests.length} quest${newQuests.length > 1 ? 's' : ''} added.`);
   };
 
   // Archive/delete quest (keeping XP ledger intact!)
@@ -1762,7 +1788,7 @@ export default function App() {
               </div>
 
               {questViewMode === 'tree' ? (
-                <TaskSkillTree onAddQuest={handleAddQuest} />
+                <TaskSkillTree onAddQuest={handleAddQuest} onLoadSeason={handleLoadSeason} />
               ) : (
                 <>
                   {/* CATEGORY FILTER */}

@@ -1,5 +1,5 @@
-import React from 'react';
-import { Plus } from 'lucide-react';
+import React, { useState } from 'react';
+import { Plus, ChevronDown, ChevronRight, Swords } from 'lucide-react';
 import { StatType, STATS, QuestDifficulty, QuestType, QuestDraft } from '../types';
 
 const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: '★' };
@@ -195,9 +195,123 @@ function BranchColumn({ stat, onAddQuest }: { stat: StatType; onAddQuest: (q: Qu
   );
 }
 
-export default function TaskSkillTree({ onAddQuest }: { onAddQuest: (q: QuestDraft) => void }) {
+// ---------------------------------------------------------
+// SEASON LOADOUT — the v2 24-month schedule (Part 7).
+// Three active nodes per season; each references exact node titles.
+// ---------------------------------------------------------
+interface Season {
+  n: number;
+  months: string;
+  theme: string;
+  titles: string[];
+  boss: string;
+}
+
+const SEASONS: Season[] = [
+  { n: 1, months: '1–3', theme: 'Foundation', titles: ['Sleep 7–8h, fixed wake', 'Read 10 pages', 'Track every expense'], boss: '30-day streak on all three (Iron Will)' },
+  { n: 2, months: '4–6', theme: 'Consistency', titles: ['Strength train', 'Stay under doomscroll limit', 'Set up automatic saving'], boss: 'First month you saved without thinking' },
+  { n: 3, months: '7–9', theme: 'Capability', titles: ['Learn ONE skill, daily practice', 'Cook own meals, protein first', '5-minute journal'], boss: 'Build one small thing with the skill' },
+  { n: 4, months: '10–12', theme: 'Capability', titles: ['Deep work 2h', 'Run 5K nonstop', 'Add one network contact'], boss: 'Run the 5K · annual review · 12 books' },
+  { n: 5, months: '13–15', theme: 'Compounding', titles: ['Ship something with the skill', 'First payment from a stranger', 'Pick ONE creative outlet'], boss: 'First payment from a stranger' },
+  { n: 6, months: '16–18', theme: 'Compounding', titles: ['6-month emergency fund', 'Hit a strength standard', 'Publish 6 technical articles'], boss: '6 months of expenses banked' },
+  { n: 7, months: '19–21', theme: 'Leverage', titles: ['Invest monthly ×3', 'Pass a language / qualifying test', 'Finish one project'], boss: 'Certificate in hand' },
+  { n: 8, months: '22–24', theme: 'Leverage', titles: ['Teach it — course/workshop/mentee', 'Run one full application cycle', 'Test yourself publicly'], boss: 'Second annual review — Capstones assessed' },
+];
+
+const NODE_BY_TITLE = new Map(NODES.map((n) => [n.title, n]));
+
+function seasonDrafts(season: Season): QuestDraft[] {
+  return season.titles
+    .map((t) => NODE_BY_TITLE.get(t))
+    .filter((n): n is NodeData => Boolean(n))
+    .map(nodeToDraft);
+}
+
+function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], label: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mb-6 border border-[#d4af37]/20 rounded-lg bg-[#1a1a2e]/40">
+      <div className="flex items-center justify-between gap-2 p-3">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 text-left cursor-pointer group min-w-0"
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-[#d4af37] shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-[#d4af37] shrink-0" />
+          )}
+          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-widest shrink-0">
+            Season Loadout
+          </span>
+          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden sm:inline">
+            the 24-month schedule · 3 nodes each
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onLoadSeason(seasonDrafts(SEASONS[0]), 'Season 1')}
+          className="shrink-0 bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all"
+        >
+          Start Season 1
+        </button>
+      </div>
+
+      {open && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 pt-0">
+          {SEASONS.map((s) => (
+            <div key={s.n} className="bg-[#15152a] border border-white/5 rounded-lg p-3 flex flex-col">
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="font-serif text-xs font-bold text-[#d4af37] uppercase tracking-wider">
+                  Season {s.n}
+                </span>
+                <span className="font-mono text-[8px] text-slate-500 uppercase">Mo {s.months}</span>
+              </div>
+              <ul className="space-y-1.5 flex-1">
+                {s.titles.map((title) => {
+                  const node = NODE_BY_TITLE.get(title);
+                  const color = node ? STATS[node.stat].color : '#94a3b8';
+                  return (
+                    <li key={title} className="flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                      <span className="font-sans text-[10px] text-slate-300 leading-tight">{title}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex items-start gap-1.5 mt-2.5 pt-2 border-t border-white/5">
+                <Swords className="w-3 h-3 text-slate-500 shrink-0 mt-px" />
+                <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wide leading-snug">{s.boss}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => onLoadSeason(seasonDrafts(s), `Season ${s.n}`)}
+                className="mt-2.5 w-full border border-[#d4af37]/30 hover:border-[#d4af37]/60 hover:bg-[#d4af37]/10 text-[#d4af37] font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all"
+              >
+                Load these 3
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function TaskSkillTree({
+  onAddQuest,
+  onLoadSeason,
+}: {
+  onAddQuest: (q: QuestDraft) => void;
+  onLoadSeason: (drafts: QuestDraft[], label: string) => void;
+}) {
   return (
     <div>
+      {/* Season loadout — the actual schedule */}
+      <SeasonLoadout onLoadSeason={onLoadSeason} />
+
       {/* Rules hint */}
       <p className="font-mono text-[9px] text-slate-500 leading-relaxed text-center px-2 mb-5">
         Tap a node to add it as a quest. Unlock after{' '}
