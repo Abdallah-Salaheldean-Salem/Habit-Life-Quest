@@ -30,31 +30,31 @@ export const STATS: Record<StatType, StatConfig> = {
     name: 'Body',
     color: '#10b981',
     textClass: 'text-emerald-400',
-    covers: 'health · fitness · energy',
+    covers: 'movement · sleep · food',
   },
   mind: {
     name: 'Mind',
     color: '#3b82f6',
     textClass: 'text-blue-400',
-    covers: 'learning · focus · study',
+    covers: 'study · reading · focus',
   },
   career: {
     name: 'Career',
     color: '#f59e0b',
     textClass: 'text-amber-400',
-    covers: 'work · money · growth',
+    covers: 'work · craft · ambition',
   },
   spirit: {
     name: 'Spirit',
     color: '#a855f7',
     textClass: 'text-purple-400',
-    covers: 'calm · gratitude · soul',
+    covers: 'calm · connection · rest',
   },
   hobby: {
     name: 'Hobby',
     color: '#ec4899',
     textClass: 'text-pink-400',
-    covers: 'craft · play · passion',
+    covers: 'play · making · joy',
   },
 };
 

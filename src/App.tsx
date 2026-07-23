@@ -1641,7 +1641,7 @@ export default function App() {
                   ACHIEVEMENTS
                 </span>
                 <span className="font-mono text-[10px] text-[#d4af37] font-bold uppercase">
-                  {unlockedAchievementsCount} / 11
+                  {unlockedAchievementsCount} / {ACHIEVEMENTS.length}
                 </span>
               </div>
 
