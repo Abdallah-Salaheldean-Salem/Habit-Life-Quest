@@ -383,40 +383,211 @@ function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], 
   );
 }
 
-const BRANCH_ANGLE: Record<StatType, number> = {
-  body: 215, // up-left
-  mind: 270, // up
-  career: 325, // up-right
-  spirit: 145, // down-left
-  hobby: 35, // down-right
-};
+// ---------------------------------------------------------
+// SPATIAL TREE (desktop) — the original radial look: full node cards laid
+// out on a canvas with connecting lines threading through each branch and
+// meeting at the FIX SLEEP core. Progressive reveal still applies.
+// ---------------------------------------------------------
+const SLEEP_TITLE = 'Sleep 7–8h, fixed wake';
 
-// The central hub the branches radiate from, with colored spokes pointing
-// toward each branch — restores the original tree's radial feel.
-function CoreHub() {
+type SpatialCard =
+  | { kind: 'node'; node: NodeData; tier: number }
+  | { kind: 'locked'; tier: number; count: number; prevName: string };
+
+// Visible cards for a branch: revealed nodes (tier ≤ frontier) + a locked
+// tease. `sleepAsCore` pulls the Sleep node out of Body (it becomes the core).
+function branchCards(stat: StatType, masteredTitles: Set<string>, sleepAsCore: boolean): SpatialCard[] {
+  const all = NODES.filter((n) => n.stat === stat);
+  let cleared = 0;
+  for (const t of TIERS) {
+    const tn = all.filter((n) => n.tier === t);
+    if (tn.length === 0) continue;
+    if (tn.some((n) => masteredTitles.has(n.title))) cleared = t;
+    else break;
+  }
+  const frontier = cleared + 1;
+  let revealed = all.filter((n) => n.tier <= frontier).sort((a, b) => a.tier - b.tier);
+  if (sleepAsCore) revealed = revealed.filter((n) => n.title !== SLEEP_TITLE);
+
+  const cards: SpatialCard[] = revealed.map((n) => ({ kind: 'node', node: n, tier: n.tier }));
+  const lockedTier = TIERS.find((t) => t > frontier && all.some((n) => n.tier === t));
+  if (lockedTier) {
+    cards.push({ kind: 'locked', tier: lockedTier, count: all.filter((n) => n.tier === lockedTier).length, prevName: TIER_NAME[frontier] });
+  }
+  return cards;
+}
+
+function SpatialCardView({
+  item,
+  stat,
+  status,
+  onAddQuest,
+}: {
+  item: SpatialCard;
+  stat: StatType;
+  status: 'mastered' | 'active' | 'available';
+  onAddQuest: (q: QuestDraft) => void;
+}) {
+  const config = STATS[stat];
+
+  if (item.kind === 'locked') {
+    return (
+      <div className="w-full h-full rounded-lg border border-dashed border-white/10 bg-[#0c0c1b]/60 flex flex-col items-center justify-center text-center px-3 relative opacity-70">
+        <span className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border border-white/15 flex items-center justify-center">
+          <Lock className="w-2 h-2 text-slate-500" />
+        </span>
+        <p className="font-mono text-[9px] text-slate-500 uppercase tracking-wider">{item.count} locked</p>
+        <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mt-0.5 leading-snug">
+          Master a <span style={{ color: config.color }}>{item.prevName}</span> node
+        </p>
+      </div>
+    );
+  }
+
+  const { node } = item;
+  const mastered = status === 'mastered';
+  const active = status === 'active';
+  const meta = `${node.type} · ${node.difficulty}${node.type === 'weekly' ? ` · ${node.target}×/wk` : ''}`;
+
   return (
-    <div className="relative flex items-center justify-center min-h-[180px]">
-      <svg className="absolute w-56 h-56 pointer-events-none" viewBox="-100 -100 200 200">
-        {BRANCH_ORDER.map((s) => {
-          const a = (BRANCH_ANGLE[s] * Math.PI) / 180;
-          return (
-            <line
-              key={s}
-              x1={Math.cos(a) * 36}
-              y1={Math.sin(a) * 36}
-              x2={Math.cos(a) * 96}
-              y2={Math.sin(a) * 96}
-              stroke={STATS[s].color}
-              strokeOpacity="0.4"
-              strokeWidth="2"
-            />
-          );
-        })}
-      </svg>
-      <div className="relative w-24 h-24 rounded-full border-2 border-[#d4af37] bg-[#15152a] flex flex-col items-center justify-center shadow-[0_0_25px_rgba(212,175,55,0.4)]">
-        <div className="w-5 h-5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active" />
-        <span className="font-serif text-[9px] text-[#d4af37] uppercase tracking-widest mt-2">Core</span>
-        <span className="font-mono text-[7px] text-slate-500 uppercase tracking-wider mt-0.5">start here</span>
+    <button
+      type="button"
+      onClick={() => onAddQuest(nodeToDraft(node))}
+      title={`${node.description}\n\nTap to add this quest.`}
+      className="w-full h-full rounded-lg border bg-[#15152a] hover:bg-[#1a1a2e] flex flex-col items-center justify-center text-center px-3 relative transition-all cursor-pointer hover:scale-[1.03]"
+      style={{ borderColor: config.color, boxShadow: `0 0 10px ${config.color}22` }}
+    >
+      <span
+        className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border flex items-center justify-center font-mono text-[8px] font-bold"
+        style={{ borderColor: config.color, color: config.color }}
+      >
+        {TIER_LABEL[node.tier]}
+      </span>
+      {mastered && <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-[#d4af37]" />}
+      <h4 className="font-bold text-sm leading-tight" style={{ color: config.color }}>
+        {node.title}
+      </h4>
+      <p className="text-[9px] text-slate-400 uppercase tracking-wider mt-1">
+        {meta}
+        {active && <span className="text-emerald-400/70"> · on board</span>}
+      </p>
+    </button>
+  );
+}
+
+function SpatialTree({
+  onAddQuest,
+  masteredTitles,
+  activeTitles,
+}: {
+  onAddQuest: (q: QuestDraft) => void;
+  masteredTitles: Set<string>;
+  activeTitles: Set<string>;
+}) {
+  const W = 820;
+  const CARD_W = 200;
+  const CARD_H = 76;
+  const SLOT = CARD_H + 24;
+  const CORE_R = 46;
+  const CORE_GAP = 34;
+  const PAD = 22;
+
+  const CENTER_X: Record<StatType, number> = { body: 150, mind: 410, career: 670, spirit: 150, hobby: 670 };
+  const TOP: StatType[] = ['body', 'mind', 'career'];
+  const BOTTOM: StatType[] = ['spirit', 'hobby'];
+
+  const cards: Record<StatType, SpatialCard[]> = {
+    body: branchCards('body', masteredTitles, true),
+    mind: branchCards('mind', masteredTitles, false),
+    career: branchCards('career', masteredTitles, false),
+    spirit: branchCards('spirit', masteredTitles, false),
+    hobby: branchCards('hobby', masteredTitles, false),
+  };
+
+  const topCount = Math.max(...TOP.map((s) => cards[s].length));
+  const bottomCount = Math.max(...BOTTOM.map((s) => cards[s].length), 1);
+
+  const nearestTopTopY = PAD + (topCount - 1) * SLOT;
+  const coreCenterY = nearestTopTopY + CARD_H + CORE_GAP + CORE_R;
+  const nearestBottomTopY = coreCenterY + CORE_R + CORE_GAP;
+  const canvasH = nearestBottomTopY + (bottomCount - 1) * SLOT + CARD_H + PAD;
+
+  // idx 0 = Tier I, nearest the core. Top branches stack upward, bottom downward.
+  const cardTop = (stat: StatType, idx: number) =>
+    TOP.includes(stat) ? nearestTopTopY - idx * SLOT : nearestBottomTopY + idx * SLOT;
+  const cardCenter = (stat: StatType, idx: number) => ({ x: CENTER_X[stat], y: cardTop(stat, idx) + CARD_H / 2 });
+
+  const linePoints = (stat: StatType) => {
+    const n = cards[stat].length;
+    const pts: { x: number; y: number }[] = [];
+    if (TOP.includes(stat)) {
+      for (let k = n - 1; k >= 0; k--) pts.push(cardCenter(stat, k));
+      pts.push({ x: 410, y: coreCenterY });
+    } else {
+      pts.push({ x: 410, y: coreCenterY });
+      for (let k = 0; k < n; k++) pts.push(cardCenter(stat, k));
+    }
+    return pts.map((p) => `${p.x},${p.y}`).join(' ');
+  };
+
+  const statusOf = (title: string): 'mastered' | 'active' | 'available' =>
+    masteredTitles.has(title) ? 'mastered' : activeTitles.has(title) ? 'active' : 'available';
+
+  const sleepMastered = masteredTitles.has(SLEEP_TITLE);
+
+  return (
+    <div className="overflow-x-auto hide-scrollbar pb-2">
+      <div className="relative mx-auto" style={{ width: W, height: canvasH }}>
+        {/* Connecting lines */}
+        <svg className="absolute inset-0" width={W} height={canvasH} style={{ pointerEvents: 'none' }}>
+          {BRANCH_ORDER.map((s) => (
+            <polyline key={s} points={linePoints(s)} fill="none" stroke={STATS[s].color} strokeOpacity="0.45" strokeWidth="2" />
+          ))}
+        </svg>
+
+        {/* Node cards */}
+        {BRANCH_ORDER.map((stat) =>
+          cards[stat].map((item, idx) => (
+            <div
+              key={`${stat}-${idx}`}
+              className="absolute"
+              style={{ left: CENTER_X[stat] - CARD_W / 2, top: cardTop(stat, idx), width: CARD_W, height: CARD_H }}
+            >
+              <SpatialCardView
+                item={item}
+                stat={stat}
+                status={item.kind === 'node' ? statusOf(item.node.title) : 'available'}
+                onAddQuest={onAddQuest}
+              />
+            </div>
+          )),
+        )}
+
+        {/* Core — the FIX SLEEP root */}
+        <button
+          type="button"
+          onClick={() =>
+            onAddQuest({
+              title: SLEEP_TITLE,
+              stat: 'body',
+              difficulty: 'normal',
+              type: 'daily',
+              target: 1,
+              tier: 1,
+              description:
+                'The root node — bad sleep quietly nerfs every stat. Fixed wake time daily (±30 min), no caffeine after 2 PM, morning daylight. Unlock: 30 days.',
+            })
+          }
+          title="Sleep 7–8h — the root node. Tap to add this quest."
+          className="absolute z-20 rounded-full border-2 border-[#d4af37] bg-[#15152a] flex flex-col items-center justify-center shadow-[0_0_22px_rgba(212,175,55,0.45)] cursor-pointer hover:scale-105 transition-transform"
+          style={{ left: 410 - CORE_R, top: coreCenterY - CORE_R, width: CORE_R * 2, height: CORE_R * 2 }}
+        >
+          {sleepMastered && <Check className="absolute top-2 right-2 w-3 h-3 text-[#d4af37]" />}
+          <span className="font-serif text-[11px] font-bold text-[#d4af37] uppercase tracking-wider leading-none">
+            Fix Sleep
+          </span>
+          <span className="font-mono text-[7px] text-slate-500 uppercase tracking-widest mt-1">7–8h · root</span>
+        </button>
       </div>
     </div>
   );
@@ -451,29 +622,12 @@ export default function TaskSkillTree({
         </span>
       </p>
 
-      {/* DESKTOP: radial layout — branches arranged around a central core hub */}
-      <div className="hidden lg:grid grid-cols-3 gap-x-5 gap-y-8 items-start">
-        <div className="col-start-1 row-start-1">
-          <BranchColumn stat="body" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
-        </div>
-        <div className="col-start-2 row-start-1">
-          <BranchColumn stat="mind" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
-        </div>
-        <div className="col-start-3 row-start-1">
-          <BranchColumn stat="career" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
-        </div>
-        <div className="col-start-2 row-start-2 self-center">
-          <CoreHub />
-        </div>
-        <div className="col-start-1 row-start-3">
-          <BranchColumn stat="spirit" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
-        </div>
-        <div className="col-start-3 row-start-3">
-          <BranchColumn stat="hobby" onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
-        </div>
+      {/* DESKTOP: spatial radial tree — cards on a canvas linked to the core */}
+      <div className="hidden lg:block">
+        <SpatialTree onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
       </div>
 
-      {/* MOBILE / TABLET: stacked branch list (radial doesn't fit narrow screens) */}
+      {/* MOBILE / TABLET: stacked branch list (the canvas doesn't fit narrow screens) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6 lg:hidden">
         {BRANCH_ORDER.map((stat) => (
           <BranchColumn
