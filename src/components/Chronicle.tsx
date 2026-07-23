@@ -4,8 +4,9 @@
  */
 
 import React from 'react';
+import { Flame } from 'lucide-react';
 import { LedgerEntry } from '../types';
-import { getDaysAgoStr, getMonday } from '../utils/logic';
+import { getAppWideStreak, getDaysAgoStr, getMonday } from '../utils/logic';
 
 interface ChronicleProps {
   ledger: LedgerEntry[];
@@ -32,9 +33,6 @@ const LEVEL_STYLE: Record<number, string> = {
   4: 'bg-[#d4af37] border-[#f3e5ab]',
 };
 
-/**
- * A GitHub-style contribution heatmap of daily XP over the last ~15 weeks.
- */
 export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
   // Sum XP per day.
   const dailyXp = new Map<string, number>();
@@ -50,29 +48,55 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
     const col: { date: string; xp: number; future: boolean }[] = [];
     for (let d = 0; d < 7; d++) {
       const date = getDaysAgoStr(startMonday, -(w * 7 + d));
-      col.push({
-        date,
-        xp: dailyXp.get(date) || 0,
-        future: date > todayStr,
-      });
+      col.push({ date, xp: dailyXp.get(date) || 0, future: date > todayStr });
     }
     weeks.push(col);
   }
 
   const activeDays = Array.from(dailyXp.keys()).filter((d) => d <= todayStr && (dailyXp.get(d) || 0) > 0).length;
 
+  // 30-day consistency: distinct active days across the last 30 days.
+  let last30Active = 0;
+  for (let i = 0; i < 30; i++) {
+    const date = getDaysAgoStr(todayStr, i);
+    if ((dailyXp.get(date) || 0) > 0) last30Active++;
+  }
+  const consistencyPct = Math.round((last30Active / 30) * 100);
+
+  const streak = getAppWideStreak(Array.from(dailyXp.keys()), todayStr);
+
   return (
     <div id="chronicle-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
-      <div className="flex justify-between items-center mb-5 border-b border-white/5 pb-3">
+      <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-3">
         <div>
           <h3 className="font-serif text-sm tracking-widest text-[#d4af37] uppercase">CHRONICLE</h3>
           <p className="font-mono text-[10px] text-slate-400 uppercase mt-0.5">Your trail of discipline</p>
         </div>
-        <span className="font-mono text-[10px] text-slate-500 uppercase">
-          <span className="text-[#d4af37] font-bold">{activeDays}</span> active days
-        </span>
+        <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-500 uppercase">
+          <Flame className={`w-3.5 h-3.5 text-[#d4af37] ${streak > 0 ? 'animate-pulse' : 'opacity-30'}`} />
+          <span>
+            <span className="text-[#d4af37] font-bold">{streak}</span> day streak
+          </span>
+        </div>
       </div>
 
+      {/* 30-day consistency progress bar */}
+      <div className="mb-5">
+        <div className="flex justify-between items-center font-mono text-[9px] text-slate-500 uppercase tracking-wider mb-1.5">
+          <span>30-day consistency</span>
+          <span>
+            <span className="text-[#d4af37] font-bold">{last30Active}</span> / 30 days · {consistencyPct}%
+          </span>
+        </div>
+        <div className="w-full bg-[#1a1a2e] h-2.5 rounded overflow-hidden border border-white/5 shadow-inner">
+          <div
+            className="h-full bg-gradient-to-r from-[#aa7c11] to-[#d4af37] rounded-r-sm shadow-[0_0_8px_rgba(212,175,55,0.6)] transition-[width] duration-700"
+            style={{ width: `${consistencyPct}%` }}
+          />
+        </div>
+      </div>
+
+      {/* Contribution heatmap */}
       <div className="overflow-x-auto pb-2 hide-scrollbar">
         <div className="flex gap-[3px] min-w-max">
           {/* Day-of-week labels */}
@@ -100,13 +124,18 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
         </div>
       </div>
 
-      {/* Legend */}
-      <div className="flex items-center justify-end gap-1.5 mt-4 font-mono text-[8px] text-slate-500 uppercase">
-        <span>Less</span>
-        {[0, 1, 2, 3, 4].map((lvl) => (
-          <div key={lvl} className={`w-3 h-3 rounded-sm border ${LEVEL_STYLE[lvl]}`} />
-        ))}
-        <span>More</span>
+      {/* Footer: total active days + legend */}
+      <div className="flex items-center justify-between mt-4 font-mono text-[8px] text-slate-500 uppercase">
+        <span>
+          <span className="text-[#d4af37] font-bold">{activeDays}</span> active days
+        </span>
+        <div className="flex items-center gap-1.5">
+          <span>Less</span>
+          {[0, 1, 2, 3, 4].map((lvl) => (
+            <div key={lvl} className={`w-3 h-3 rounded-sm border ${LEVEL_STYLE[lvl]}`} />
+          ))}
+          <span>More</span>
+        </div>
       </div>
     </div>
   );
