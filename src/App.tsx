@@ -67,7 +67,9 @@ import {
   getWeeklyQuestStreak,
   getAppWideStreak,
   getMockSaveData,
-  getUnlockProgress
+  getUnlockProgress,
+  getAutomaticity,
+  getAutomaticityState
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
@@ -554,6 +556,47 @@ export default function App() {
     return 0; // Milestones do not have streaks
   };
 
+  // Dual ring for a quest's completion control: streak (inner, stat colour)
+  // toward the 30-day checkpoint + automaticity (outer, gold) toward 100.
+  const renderAutomaticityRings = (q: Quest) => {
+    const auto = getAutomaticity(q, ledger, currentMockDate);
+    const streak = getQuestStreak(q);
+    const config = STATS[q.stat];
+    const cOuter = 2 * Math.PI * 20;
+    const cInner = 2 * Math.PI * 15;
+    return (
+      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 44 44">
+        <g transform="rotate(-90 22 22)">
+          <circle cx="22" cy="22" r="20" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="2.5" />
+          <circle cx="22" cy="22" r="20" fill="none" stroke="#d4af37" strokeWidth="2.5" strokeLinecap="round"
+            strokeDasharray={cOuter} strokeDashoffset={cOuter * (1 - Math.min(auto, 100) / 100)} />
+          <circle cx="22" cy="22" r="15" fill="none" stroke="rgba(255,255,255,0.07)" strokeWidth="2.5" />
+          <circle cx="22" cy="22" r="15" fill="none" stroke={config.color} strokeWidth="2.5" strokeLinecap="round"
+            strokeDasharray={cInner} strokeDashoffset={cInner * (1 - Math.min(streak / 30, 1))} />
+        </g>
+      </svg>
+    );
+  };
+
+  // State pill: Forming (<40) → Sticking (40–79) → Automatic (80+).
+  const renderAutoState = (q: Quest) => {
+    if (q.type === 'milestone') return null;
+    const auto = getAutomaticity(q, ledger, currentMockDate);
+    const state = getAutomaticityState(auto);
+    const label = state === 'automatic' ? 'Automatic' : state === 'sticking' ? 'Sticking' : 'Forming';
+    const cls =
+      state === 'automatic'
+        ? 'text-emerald-400 border-emerald-500/40 bg-emerald-500/10'
+        : state === 'sticking'
+        ? 'text-amber-400 border-amber-500/40 bg-amber-500/10'
+        : 'text-slate-500 border-white/10';
+    return (
+      <span className={`px-1.5 py-[1px] rounded-full border font-bold normal-case ${cls}`} title="Automaticity — how ingrained the habit is (0–100)">
+        {label} · {auto}
+      </span>
+    );
+  };
+
   // Shows the quest's implementation intention (cue · location) when set.
   const renderIntention = (q: Quest) => {
     if (!q.intention?.cue) return null;
@@ -620,14 +663,13 @@ export default function App() {
     }
   };
 
-  // "Max 3 active nodes" guardrail from the playbook: count quests still being
-  // built (active, not yet unlocked) vs. those already mastered.
-  const masteredCount = quests.filter(
-    (q) => q.active && getUnlockProgress(q, ledger, currentMockDate).unlocked,
+  // "Max 3 active nodes" guardrail: a recurring quest only stops counting once
+  // it's Automatic (80+). Milestones are one-off and don't count.
+  const habitQuests = quests.filter((q) => q.active && q.type !== 'milestone');
+  const automaticCount = habitQuests.filter(
+    (q) => getAutomaticity(q, ledger, currentMockDate) >= 80,
   ).length;
-  const buildingCount = quests.filter(
-    (q) => q.active && !getUnlockProgress(q, ledger, currentMockDate).unlocked,
-  ).length;
+  const buildingCount = habitQuests.length - automaticCount;
 
   // Titles of quests already on the board, and of those already mastered —
   // drives the skill tree's progressive reveal (a tier unlocks once a node
@@ -1814,7 +1856,7 @@ export default function App() {
                   </p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
-                  {(buildingCount > 0 || masteredCount > 0) && (
+                  {(buildingCount > 0 || automaticCount > 0) && (
                     <div
                       className={`font-mono text-[10px] py-1.5 px-3 rounded border ${
                         buildingCount > 3
@@ -1823,13 +1865,13 @@ export default function App() {
                       }`}
                       title={
                         buildingCount > 3
-                          ? 'The playbook suggests building no more than 3 nodes at once — spread too thin and you quit everything.'
-                          : 'Nodes you are actively building toward their 30-day unlock.'
+                          ? 'Run no more than 3 habits at once — a habit only frees a slot once it becomes Automatic (80+).'
+                          : 'Habits still forming. Once one is Automatic it stops counting against your 3.'
                       }
                     >
                       Focus <span className="font-bold">{buildingCount}</span>/3
-                      {masteredCount > 0 && (
-                        <span className="text-[#d4af37]"> · {masteredCount} mastered</span>
+                      {automaticCount > 0 && (
+                        <span className="text-emerald-400"> · {automaticCount} automatic</span>
                       )}
                     </div>
                   )}
@@ -1935,19 +1977,22 @@ export default function App() {
                             borderLeftColor: config.color,
                           }}
                         >
-                          {/* Left: complete (full) or log the minimum */}
-                          <div className="flex flex-col items-center gap-1 w-8 shrink-0">
-                            <button
-                              onClick={() => handleToggleCheckCircle(q)}
-                              className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
-                              title="Log a full completion"
-                            >
-                              {completedToday ? (
-                                <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
-                              ) : (
-                                <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
-                              )}
-                            </button>
+                          {/* Left: complete (full) or log the minimum — ring shows streak + automaticity */}
+                          <div className="flex flex-col items-center gap-1 shrink-0">
+                            <div className="relative w-11 h-11 flex items-center justify-center">
+                              {renderAutomaticityRings(q)}
+                              <button
+                                onClick={() => handleToggleCheckCircle(q)}
+                                className="relative text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
+                                title="Log a full completion"
+                              >
+                                {completedToday ? (
+                                  <CheckCircle2 className="w-5 h-5" style={{ color: config.color }} />
+                                ) : (
+                                  <Circle className="w-5 h-5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                                )}
+                              </button>
+                            </div>
                             {completedToday ? (
                               todayIsMin && <span className="font-mono text-[7px] uppercase tracking-wider text-[#d4af37]/60">min</span>
                             ) : (
@@ -1976,6 +2021,7 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                              {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
                               <span>{baseChanceXp} XP</span>
@@ -2044,21 +2090,24 @@ export default function App() {
                             borderLeftColor: config.color,
                           }}
                         >
-                          {/* Left: complete (full) or log the minimum for today */}
-                          <div className="flex flex-col items-center gap-1 w-8 shrink-0">
-                            <button
-                              onClick={() => handleToggleCheckCircle(q)}
-                              className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer relative"
-                              title="Log a full completion"
-                            >
-                              {loggedToday ? (
-                                <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
-                              ) : satisfiedThisWeek ? (
-                                <CheckCircle2 className="w-5.5 h-5.5 opacity-50" style={{ color: config.color }} />
-                              ) : (
-                                <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
-                              )}
-                            </button>
+                          {/* Left: complete (full) or log the minimum — ring shows streak + automaticity */}
+                          <div className="flex flex-col items-center gap-1 shrink-0">
+                            <div className="relative w-11 h-11 flex items-center justify-center">
+                              {renderAutomaticityRings(q)}
+                              <button
+                                onClick={() => handleToggleCheckCircle(q)}
+                                className="relative text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
+                                title="Log a full completion"
+                              >
+                                {loggedToday ? (
+                                  <CheckCircle2 className="w-5 h-5" style={{ color: config.color }} />
+                                ) : satisfiedThisWeek ? (
+                                  <CheckCircle2 className="w-5 h-5 opacity-50" style={{ color: config.color }} />
+                                ) : (
+                                  <Circle className="w-5 h-5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                                )}
+                              </button>
+                            </div>
                             {loggedToday ? (
                               todayIsMin && <span className="font-mono text-[7px] uppercase tracking-wider text-[#d4af37]/60">min</span>
                             ) : (
@@ -2087,6 +2136,7 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                              {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
                               <span>{baseChanceXp} XP</span>
@@ -2182,6 +2232,7 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                              {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
                               <span>·</span>
                               <span>{baseChanceXp} XP</span>

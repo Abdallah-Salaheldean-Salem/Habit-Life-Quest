@@ -129,6 +129,56 @@ export function getCharacterTitle(level: number): string {
 }
 
 // ---------------------------------------------------------
+// AUTOMATICITY
+// Streak length answers "did you do it"; automaticity answers "has it become
+// automatic" — the real goal. It blends how long the quest has run against a
+// difficulty-scaled target (median time-to-automaticity ~66 days) with the
+// recent completion rate. Milestones have no automaticity (they're one-off).
+// ---------------------------------------------------------
+export type AutomaticityState = 'forming' | 'sticking' | 'automatic';
+
+const DIFFICULTY_TARGET_DAYS: Record<QuestDifficulty, number> = { easy: 40, normal: 66, hard: 100 };
+
+function daysBetween(a: string, b: string): number {
+  return Math.round(
+    (new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000,
+  );
+}
+
+export function getAutomaticity(quest: Quest, ledger: LedgerEntry[], currentDate: string): number {
+  if (quest.type === 'milestone') return 0;
+
+  const daysSince = Math.max(0, daysBetween(quest.createdAt, currentDate));
+  if (daysSince <= 0) return 0;
+
+  const window = Math.min(daysSince, 30);
+  const windowStart = getDaysAgoStr(currentDate, window - 1);
+  const comps = ledger.filter(
+    (e) => e.questId === quest.id && e.date >= windowStart && e.date <= currentDate,
+  );
+
+  let rate: number;
+  if (quest.type === 'weekly') {
+    const target = Math.max(1, quest.target);
+    const weeks = Math.max(1, window / 7);
+    rate = Math.min(1, comps.length / (target * weeks));
+  } else {
+    const distinctDays = new Set(comps.map((e) => e.date)).size;
+    rate = Math.min(1, distinctDays / window);
+  }
+
+  const targetDays = DIFFICULTY_TARGET_DAYS[quest.difficulty] ?? 66;
+  const progress = Math.min(daysSince / targetDays, 1);
+  return Math.round(progress * rate * 100);
+}
+
+export function getAutomaticityState(score: number): AutomaticityState {
+  if (score >= 80) return 'automatic';
+  if (score >= 40) return 'sticking';
+  return 'forming';
+}
+
+// ---------------------------------------------------------
 // STAT RANKS
 // Rank 0 -> 1 costs 100 XP, each subsequent rank costs +50 more.
 // Mirrors getStatRankProgress() in App.tsx.
