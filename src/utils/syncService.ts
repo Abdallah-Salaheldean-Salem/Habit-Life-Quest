@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Quest, LedgerEntry } from '../types';
+import { Quest, LedgerEntry, FrictionItem } from '../types';
 
 export interface SaveStateData {
   version: number;
@@ -10,6 +10,7 @@ export interface SaveStateData {
   currentMockDate: string;
   hasCreatedCharacter: boolean;
   syncEmail?: string | null;
+  frictionItems?: FrictionItem[];
 }
 
 /**
@@ -131,6 +132,20 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
   
   const mergedQuests = Array.from(questMap.values());
 
+  // 2b. Merge friction items by id (union), same as ledger/quests.
+  const frictionMap = new Map<string, FrictionItem>();
+  if (Array.isArray(local.frictionItems)) {
+    local.frictionItems.forEach((f) => {
+      if (f && f.id) frictionMap.set(f.id, f);
+    });
+  }
+  if (Array.isArray(remote.frictionItems)) {
+    remote.frictionItems.forEach((f) => {
+      if (f && f.id) frictionMap.set(f.id, f);
+    });
+  }
+  const mergedFrictionItems = Array.from(frictionMap.values());
+
   // 3. Profiles and date
   // Prefer remote details unless they are defaults or empty
   const isLocalDefault = local.userName === 'Abdallah' || !local.userName;
@@ -147,6 +162,7 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     userClass: mergedUserClass || 'scholar',
     quests: mergedQuests,
     ledger: mergedLedger,
+    frictionItems: mergedFrictionItems,
     currentMockDate: mergedCurrentMockDate,
     hasCreatedCharacter: mergedHasCreatedCharacter,
   };

@@ -126,11 +126,25 @@ export interface LedgerEntry {
   difficulty: QuestDifficulty;
   type: QuestType;
   /**
-   * How the day was cleared. 'full' is a normal completion; 'minimum' is the
-   * never-zero fallback (40% XP) that still preserves the streak. Legacy
-   * entries with no kind are treated as 'full'.
+   * How the XP was earned. 'full' is a normal completion; 'minimum' is the
+   * never-zero fallback (40% XP) that still preserves the streak; 'friction'
+   * is a one-time environment change (not a quest completion). Legacy entries
+   * with no kind are treated as 'full'.
    */
-  kind?: 'full' | 'minimum';
+  kind?: 'full' | 'minimum' | 'friction';
+}
+
+/**
+ * One environment-design change tied to a quest. Reducing friction beats
+ * willpower; adding friction helps break a behavior. Completing one is worth
+ * XP because a one-time change beats a day of resisting.
+ */
+export interface FrictionItem {
+  id: string;
+  questId: string;
+  text: string;
+  done: boolean;
+  kind: 'reduce' | 'add';
 }
 
 /** Shape used by the local JSON export/import. */
@@ -141,4 +155,5 @@ export interface SaveState {
   quests: Quest[];
   ledger: LedgerEntry[];
   createdAt: string;
+  frictionItems?: FrictionItem[];
 }

@@ -22,6 +22,9 @@ import {
   Edit2,
   Save,
   Plus,
+  Wrench,
+  ChevronDown,
+  ChevronUp,
   ChevronRight,
   Info,
   RefreshCw,
@@ -38,7 +41,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
@@ -73,10 +76,59 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 // Minimum (never-zero) completions earn a fraction of the full XP.
 const MIN_XP_FACTOR = 0.4;
+// A one-time environment change (friction item) is worth a flat XP reward.
+const FRICTION_XP = 25;
+
+// Inline input for adding a friction item to a quest.
+function FrictionAddRow({ onAdd }: { onAdd: (text: string, kind: 'reduce' | 'add') => void }) {
+  const [text, setText] = useState('');
+  const [kind, setKind] = useState<'reduce' | 'add'>('reduce');
+  const submit = () => {
+    if (!text.trim()) return;
+    onAdd(text, kind);
+    setText('');
+  };
+  return (
+    <div className="flex items-center gap-1.5 pt-1">
+      <button
+        type="button"
+        onClick={() => setKind(kind === 'reduce' ? 'add' : 'reduce')}
+        className={`font-mono text-[8px] uppercase tracking-wider px-1.5 py-1 rounded border shrink-0 cursor-pointer ${
+          kind === 'reduce'
+            ? 'text-emerald-400 border-emerald-500/30'
+            : 'text-rose-400 border-rose-500/30'
+        }`}
+        title="Reduce friction makes the good habit easier; add friction makes a bad one harder"
+      >
+        {kind}
+      </button>
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        placeholder="one change to your surroundings…"
+        className="flex-1 min-w-0 bg-[#050510]/60 border border-white/5 focus:border-[#d4af37]/40 rounded px-2 py-1 text-[11px] text-slate-200 placeholder-slate-600 outline-none"
+      />
+      <button
+        type="button"
+        onClick={submit}
+        className="text-slate-500 hover:text-[#d4af37] cursor-pointer shrink-0"
+        title="Add"
+      >
+        <Plus className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
 
 export default function App() {
   // ---------------------------------------------------------
@@ -86,6 +138,8 @@ export default function App() {
   const [userClass, setUserClass] = useState<UserClass>('scholar');
   const [quests, setQuests] = useState<Quest[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [frictionItems, setFrictionItems] = useState<FrictionItem[]>([]);
+  const [expandedFriction, setExpandedFriction] = useState<Set<string>>(new Set());
   const [currentMockDate, setCurrentMockDate] = useState<string>('2026-07-18'); // Saturdays match the mockup
   const [timeframe, setTimeframe] = useState<'7' | '30' | 'all'>('30');
   
@@ -235,6 +289,12 @@ export default function App() {
       if (Array.isArray(updated.ledger)) {
         updated.ledger = updated.ledger.map((e: any) => ({ ...e, kind: e.kind || 'full' }));
       }
+      updated.version = 5;
+    }
+
+    // v5 -> v6: friction ledger (per-quest environment changes).
+    if (updated.version < 6) {
+      updated.frictionItems = updated.frictionItems || [];
       updated.version = SCHEMA_VERSION;
     }
 
@@ -254,6 +314,7 @@ export default function App() {
           userClass,
           quests,
           ledger,
+          frictionItems,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -269,6 +330,7 @@ export default function App() {
               userClass: migrated.userClass,
               quests: migrated.quests,
               ledger: migrated.ledger,
+              frictionItems: migrated.frictionItems || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -284,6 +346,7 @@ export default function App() {
         setUserClass(merged.userClass as UserClass);
         setQuests(merged.quests);
         setLedger(merged.ledger);
+        setFrictionItems(merged.frictionItems || []);
         if (merged.currentMockDate) {
           setCurrentMockDate(merged.currentMockDate);
         }
@@ -301,6 +364,7 @@ export default function App() {
           userClass,
           quests,
           ledger,
+          frictionItems,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -316,6 +380,7 @@ export default function App() {
               userClass: migrated.userClass,
               quests: migrated.quests,
               ledger: migrated.ledger,
+              frictionItems: migrated.frictionItems || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -355,6 +420,7 @@ export default function App() {
         setUserClass(migrated.userClass);
         setQuests(migrated.quests);
         setLedger(migrated.ledger);
+        setFrictionItems(migrated.frictionItems || []);
         if (migrated.currentMockDate) {
           setCurrentMockDate(migrated.currentMockDate);
         }
@@ -406,13 +472,14 @@ export default function App() {
         userClass,
         quests,
         ledger,
+        frictionItems,
         currentMockDate,
         hasCreatedCharacter,
         syncEmail
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, quests, ledger, frictionItems, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in)
   useEffect(() => {
@@ -425,17 +492,18 @@ export default function App() {
           userClass,
           quests,
           ledger,
+          frictionItems,
           currentMockDate,
           hasCreatedCharacter
         };
         await pushSave(session.user.id, session.user.email || '', stateToSave);
       }
     };
-    
+
     if (quests.length > 0 || ledger.length > 0) {
       triggerPush();
     }
-  }, [userName, userClass, quests, ledger, currentMockDate, hasCreatedCharacter]);
+  }, [userName, userClass, quests, ledger, frictionItems, currentMockDate, hasCreatedCharacter]);
 
 
   const handleHardReset = () => {
@@ -444,6 +512,7 @@ export default function App() {
     setUserClass('scholar');
     setQuests([]);
     setLedger([]);
+    setFrictionItems([]);
     setHasCreatedCharacter(false);
     setCurrentMockDate(toDateStr(new Date()));
     showToast('Save Data Wiped. Beginning anew.');
@@ -455,6 +524,7 @@ export default function App() {
     setUserClass(mock.userClass);
     setQuests(mock.quests);
     setLedger(mock.ledger);
+    setFrictionItems(mock.frictionItems || []);
     setCurrentMockDate('2026-07-18');
     showToast('Loaded Original Mockup State!');
   };
@@ -477,7 +547,7 @@ export default function App() {
   const characterTitle = getCharacterTitle(levelProgress.level);
 
   // Total completions count
-  const totalCleared = ledger.length;
+  const totalCleared = ledger.filter((e) => e.kind !== 'friction').length;
 
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
@@ -597,6 +667,117 @@ export default function App() {
     );
   };
 
+  // ---------------------------------------------------------
+  // FRICTION LEDGER — per-quest environment changes.
+  // ---------------------------------------------------------
+  const addFriction = (questId: string, text: string, kind: 'reduce' | 'add' = 'reduce') => {
+    const t = text.trim();
+    if (!t) return;
+    const item: FrictionItem = {
+      id: `fr_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      questId,
+      text: t,
+      done: false,
+      kind,
+    };
+    setFrictionItems([...frictionItems, item]);
+  };
+
+  const toggleFriction = (item: FrictionItem) => {
+    const nowDone = !item.done;
+    setFrictionItems(frictionItems.map((f) => (f.id === item.id ? { ...f, done: nowDone } : f)));
+    const xpId = `friction_${item.id}`;
+    if (nowDone) {
+      const quest = quests.find((q) => q.id === item.questId);
+      const entry: LedgerEntry = {
+        id: xpId,
+        date: currentMockDate,
+        questId: xpId,
+        questTitle: `Friction: ${item.text}`,
+        xp: FRICTION_XP,
+        stat: quest?.stat ?? 'body',
+        difficulty: 'easy',
+        type: 'milestone',
+        kind: 'friction',
+      };
+      setLedger([...ledger.filter((e) => e.id !== xpId), entry]);
+      showToast(`Environment changed — +${FRICTION_XP} XP. A change beats a day of resisting.`);
+    } else {
+      setLedger(ledger.filter((e) => e.id !== xpId));
+    }
+  };
+
+  const deleteFriction = (id: string) => {
+    setFrictionItems(frictionItems.filter((f) => f.id !== id));
+    setLedger(ledger.filter((e) => e.id !== `friction_${id}`));
+  };
+
+  const toggleFrictionExpand = (questId: string) => {
+    setExpandedFriction((prev) => {
+      const next = new Set(prev);
+      if (next.has(questId)) next.delete(questId);
+      else next.add(questId);
+      return next;
+    });
+  };
+
+  const renderFrictionSection = (q: Quest) => {
+    const items = frictionItems.filter((f) => f.questId === q.id);
+    const doneCount = items.filter((f) => f.done).length;
+    const isOpen = expandedFriction.has(q.id);
+    return (
+      <div className="mt-1.5">
+        <button
+          type="button"
+          onClick={() => toggleFrictionExpand(q.id)}
+          className="font-mono text-[8px] uppercase tracking-wider text-slate-500 hover:text-[#d4af37] flex items-center gap-1 cursor-pointer transition-colors"
+        >
+          <Wrench className="w-2.5 h-2.5" /> Environment{items.length ? ` · ${doneCount}/${items.length}` : ''}
+          {isOpen ? <ChevronUp className="w-2.5 h-2.5" /> : <ChevronDown className="w-2.5 h-2.5" />}
+        </button>
+        {isOpen && (
+          <div className="mt-1.5 space-y-1.5 border-l border-white/10 pl-2.5">
+            {items.length === 0 && (
+              <p className="font-mono text-[9px] text-slate-600 leading-snug">
+                What one change to your surroundings makes this easier?
+              </p>
+            )}
+            {items.map((f) => (
+              <div key={f.id} className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => toggleFriction(f)}
+                  className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 cursor-pointer ${
+                    f.done ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400' : 'border-white/20 text-transparent'
+                  }`}
+                >
+                  <Check className="w-2.5 h-2.5" />
+                </button>
+                <span className={`text-[11px] flex-1 min-w-0 break-words ${f.done ? 'line-through text-slate-500' : 'text-slate-300'}`}>{f.text}</span>
+                <span
+                  className={`font-mono text-[7px] uppercase px-1 rounded border shrink-0 ${
+                    f.kind === 'reduce' ? 'text-emerald-400/70 border-emerald-500/20' : 'text-rose-400/70 border-rose-500/20'
+                  }`}
+                >
+                  {f.kind}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => deleteFriction(f.id)}
+                  className="text-slate-600 hover:text-rose-400 cursor-pointer shrink-0"
+                  title="Remove"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+            <FrictionAddRow onAdd={(text, kind) => addFriction(q.id, text, kind)} />
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // Shows the quest's implementation intention (cue · location) when set.
   const renderIntention = (q: Quest) => {
     if (!q.intention?.cue) return null;
@@ -687,6 +868,7 @@ export default function App() {
       level: levelProgress.level,
       statRanks,
       getQuestStreak,
+      frictionItems,
     });
     return count + (isUnlocked ? 1 : 0);
   }, 0);
@@ -1794,6 +1976,7 @@ export default function App() {
                     level: levelProgress.level,
                     statRanks,
                     getQuestStreak,
+                    frictionItems,
                   });
 
                   return (
@@ -2007,7 +2190,7 @@ export default function App() {
                           </div>
 
                           {/* Middle: Details */}
-                          <div className="flex-1 text-left">
+                          <div className="flex-1 min-w-0 text-left">
                             <h4
                               className={`font-sans text-xs font-semibold leading-snug ${
                                 completedToday ? 'text-slate-400 line-through' : 'text-slate-100'
@@ -2020,6 +2203,7 @@ export default function App() {
                             )}
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
+                            {renderFrictionSection(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
@@ -2122,7 +2306,7 @@ export default function App() {
                           </div>
 
                           {/* Middle: Info */}
-                          <div className="flex-1 text-left">
+                          <div className="flex-1 min-w-0 text-left">
                             <h4
                               className={`font-sans text-xs font-semibold leading-snug ${
                                 satisfiedThisWeek ? 'text-slate-400 line-through' : 'text-slate-100'
@@ -2135,6 +2319,7 @@ export default function App() {
                             )}
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
+                            {renderFrictionSection(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
@@ -2218,7 +2403,7 @@ export default function App() {
                           </button>
 
                           {/* Middle: details */}
-                          <div className="flex-1 text-left">
+                          <div className="flex-1 min-w-0 text-left">
                             <h4
                               className={`font-sans text-xs font-semibold leading-snug ${
                                 cleared ? 'text-slate-400 line-through' : 'text-slate-100'
@@ -2231,6 +2416,7 @@ export default function App() {
                             )}
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
+                            {renderFrictionSection(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>

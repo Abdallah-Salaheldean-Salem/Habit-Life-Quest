@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LedgerEntry, Quest, StatType } from '../types';
+import { FrictionItem, LedgerEntry, Quest, StatType } from '../types';
 
 export interface AchievementContext {
   ledger: LedgerEntry[];
@@ -11,6 +11,7 @@ export interface AchievementContext {
   level: number;
   statRanks: Record<StatType, number>;
   getQuestStreak: (q: Quest) => number;
+  frictionItems: FrictionItem[];
 }
 
 export interface Achievement {
@@ -112,5 +113,12 @@ export const ACHIEVEMENTS: Achievement[] = [
     title: 'Iron Will',
     description: 'Reach a 30-day streak on any quest — a node unlocked.',
     check: (ctx) => bestQuestStreak(ctx) >= 30,
+  },
+  {
+    id: 'architect',
+    numIcon: 'XIII',
+    title: 'Architect',
+    description: 'Complete 10 environment changes — design beats willpower.',
+    check: (ctx) => ctx.frictionItems.filter((f) => f.done).length >= 10,
   },
 ];
