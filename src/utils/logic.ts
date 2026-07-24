@@ -5,6 +5,7 @@
 
 import {
   CLASSES,
+  FrictionItem,
   LedgerEntry,
   Quest,
   QuestDifficulty,
@@ -316,6 +317,7 @@ export function getMockSaveData(dateStr: string): {
   userClass: UserClass;
   quests: Quest[];
   ledger: LedgerEntry[];
+  frictionItems: FrictionItem[];
 } {
   const userClass: UserClass = 'scholar';
   const createdAt = getDaysAgoStr(dateStr, 45);
@@ -379,5 +381,11 @@ export function getMockSaveData(dateStr: string): {
   const strength = byId('mock_strength');
   [1, 3, 5, 8, 10].forEach((offset) => log(strength, getDaysAgoStr(dateStr, offset)));
 
-  return { userName: 'Abdallah', userClass, quests, ledger };
+  // A couple of seeded environment changes on the Sleep quest.
+  const frictionItems: FrictionItem[] = [
+    { id: 'fr_seed_sleep_1', questId: 'mock_sleep', text: 'Phone charges outside the bedroom', done: true, kind: 'reduce' },
+    { id: 'fr_seed_sleep_2', questId: 'mock_sleep', text: 'No caffeine after 2 PM', done: false, kind: 'reduce' },
+  ];
+
+  return { userName: 'Abdallah', userClass, quests, ledger, frictionItems };
 }
