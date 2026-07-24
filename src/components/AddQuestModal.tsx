@@ -32,10 +32,17 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
   const [difficulty, setDifficulty] = useState<QuestDifficulty>('normal');
   const [type, setType] = useState<QuestType>('daily');
   const [target, setTarget] = useState(3);
+  const [cue, setCue] = useState('');
+  const [location, setLocation] = useState('');
+  const [minVersion, setMinVersion] = useState('');
+  const [error, setError] = useState('');
 
   if (!isOpen) return null;
 
   const xpPreview = calculateQuestXp(difficulty, type, stat, userClass);
+  // An implementation intention is required for daily quests — a vague daily
+  // quest is one that quietly fails.
+  const intentionRequired = type === 'daily';
 
   const reset = () => {
     setTitle('');
@@ -44,13 +51,29 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
     setDifficulty('normal');
     setType('daily');
     setTarget(3);
+    setCue('');
+    setLocation('');
+    setMinVersion('');
+    setError('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = title.trim();
     if (!trimmed) return;
+
+    const c = cue.trim();
+    const l = location.trim();
+    const m = minVersion.trim();
+
+    if (intentionRequired && (!c || !l || !m)) {
+      setError('A daily quest needs a cue, a place, and a minimum version — that’s what makes it stick.');
+      return;
+    }
+
     const desc = description.trim();
+    const intention = c && l && m ? { cue: c, location: l, minVersion: m } : undefined;
+
     onAdd({
       title: trimmed,
       stat,
@@ -58,6 +81,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
       type,
       target: type === 'weekly' ? Math.max(1, target) : 1,
       ...(desc ? { description: desc } : {}),
+      ...(intention ? { intention } : {}),
     });
     reset();
     onClose();
@@ -184,6 +208,55 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
             </div>
           </div>
 
+          {/* IMPLEMENTATION INTENTION */}
+          <div className="pt-1">
+            <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+              The intention{' '}
+              {intentionRequired ? (
+                <span className="text-rose-400 tracking-normal">· required</span>
+              ) : (
+                <span className="text-slate-600 lowercase tracking-normal">· optional, but it works</span>
+              )}
+            </label>
+            <div className="bg-[#1a1a2e] border border-white/5 rounded-lg p-4 space-y-3 text-sm text-[#e0e0e0] leading-relaxed">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-slate-400">When</span>
+                <input
+                  type="text"
+                  placeholder="after I finish dinner"
+                  value={cue}
+                  onChange={(e) => setCue(e.target.value)}
+                  className="flex-1 min-w-[140px] bg-[#050510]/60 border border-white/5 focus:border-[#d4af37]/50 rounded-md py-1.5 px-3 text-sm text-[#f3e5ab] placeholder-slate-600 outline-none transition-all"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-slate-400">at</span>
+                <input
+                  type="text"
+                  placeholder="the living-room chair"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="flex-1 min-w-[140px] bg-[#050510]/60 border border-white/5 focus:border-[#d4af37]/50 rounded-md py-1.5 px-3 text-sm text-[#f3e5ab] placeholder-slate-600 outline-none transition-all"
+                />
+                <span className="text-slate-400">, I will {title.trim() ? `“${title.trim()}”` : 'do this quest'}.</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-white/5">
+                <span className="text-slate-400">On a bad day, the minimum is</span>
+                <input
+                  type="text"
+                  placeholder="one page"
+                  value={minVersion}
+                  onChange={(e) => setMinVersion(e.target.value)}
+                  className="flex-1 min-w-[120px] bg-[#050510]/60 border border-emerald-500/20 focus:border-emerald-500/50 rounded-md py-1.5 px-3 text-sm text-emerald-300 placeholder-slate-600 outline-none transition-all"
+                />
+              </div>
+            </div>
+            <p className="font-mono text-[9px] text-slate-500 mt-1.5 leading-relaxed">
+              A cue + a place roughly doubles follow-through. The minimum is your never-zero fallback — done on a bad
+              day it still keeps the streak.
+            </p>
+          </div>
+
           {/* WEEKLY TARGET */}
           {type === 'weekly' && (
             <div>
@@ -200,6 +273,13 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
               />
               <p className="font-mono text-[9px] text-slate-500 mt-1.5 uppercase">Times per week to satisfy this quest</p>
             </div>
+          )}
+
+          {/* Validation message */}
+          {error && (
+            <p className="font-mono text-[10px] text-rose-400 leading-relaxed bg-rose-500/5 border border-rose-500/20 rounded-md py-2 px-3">
+              {error}
+            </p>
           )}
 
           {/* XP PREVIEW + SUBMIT */}
