@@ -94,6 +94,22 @@ export interface Quest {
   description?: string;
   /** Skill-tree tier: 1 (foundational) → 3 (advanced). */
   tier?: number;
+  /**
+   * Implementation intention — roughly doubles follow-through. Required for
+   * daily quests: a vague quest is a quest that fails.
+   */
+  intention?: QuestIntention;
+}
+
+export interface QuestIntention {
+  /** The cue that triggers it, e.g. "after I finish dinner". */
+  cue: string;
+  /** Where it happens, e.g. "the living-room chair". */
+  location: string;
+  /** The never-zero fallback done on a bad day, e.g. "one page". */
+  minVersion: string;
+  /** Another quest this one stacks onto (optional). */
+  anchorId?: string;
 }
 
 /** The shape used when drafting a new quest (before it is persisted). */
@@ -109,6 +125,12 @@ export interface LedgerEntry {
   stat: StatType;
   difficulty: QuestDifficulty;
   type: QuestType;
+  /**
+   * How the day was cleared. 'full' is a normal completion; 'minimum' is the
+   * never-zero fallback (40% XP) that still preserves the streak. Legacy
+   * entries with no kind are treated as 'full'.
+   */
+  kind?: 'full' | 'minimum';
 }
 
 /** Shape used by the local JSON export/import. */

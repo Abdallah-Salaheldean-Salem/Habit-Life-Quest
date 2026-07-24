@@ -71,7 +71,10 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
+
+// Minimum (never-zero) completions earn a fraction of the full XP.
+const MIN_XP_FACTOR = 0.4;
 
 export default function App() {
   // ---------------------------------------------------------
@@ -221,6 +224,15 @@ export default function App() {
     // v3 -> v4: Added currentMockDate configuration for robust testing
     if (updated.version < 4) {
       updated.currentMockDate = updated.currentMockDate || '2026-07-18';
+      updated.version = 4;
+    }
+
+    // v4 -> v5: Implementation intentions on quests + never-zero completion
+    // kind on ledger entries. Existing entries are full completions.
+    if (updated.version < 5) {
+      if (Array.isArray(updated.ledger)) {
+        updated.ledger = updated.ledger.map((e: any) => ({ ...e, kind: e.kind || 'full' }));
+      }
       updated.version = SCHEMA_VERSION;
     }
 
@@ -542,6 +554,20 @@ export default function App() {
     return 0; // Milestones do not have streaks
   };
 
+  // Shows the quest's implementation intention (cue · location) when set.
+  const renderIntention = (q: Quest) => {
+    if (!q.intention?.cue) return null;
+    return (
+      <p className="font-mono text-[9px] text-slate-500 mt-1 flex items-start gap-1 lowercase leading-snug">
+        <span className="text-[#d4af37]/70 not-italic">⟳</span>
+        <span>
+          {q.intention.cue}
+          {q.intention.location ? ` · ${q.intention.location}` : ''}
+        </span>
+      </p>
+    );
+  };
+
   // Renders a quest's progress toward "unlocking" (30 consistent days / 4 weeks
   // / one milestone completion). Once unlocked, shows a Mastered badge instead.
   const renderUnlockBar = (q: Quest) => {
@@ -741,6 +767,7 @@ export default function App() {
           stat: q.stat,
           difficulty: q.difficulty,
           type: q.type,
+          kind: 'full',
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
@@ -769,6 +796,7 @@ export default function App() {
           stat: q.stat,
           difficulty: q.difficulty,
           type: q.type,
+          kind: 'full',
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
@@ -791,11 +819,47 @@ export default function App() {
           stat: q.stat,
           difficulty: q.difficulty,
           type: q.type,
+          kind: 'full',
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
         showToast(`Milestone Complete! Earned +${xp} XP!`);
       }
+    }
+  };
+
+  // Never-zero: log the quest's minimum version instead of missing. Earns
+  // reduced XP but preserves the streak, and is recorded distinctly.
+  const handleLogMinimum = (q: Quest) => {
+    if (q.type === 'milestone') return;
+    if (isLoggedToday(q.id)) {
+      showToast(`"${q.title}" is already logged today.`);
+      return;
+    }
+    const fullXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+    const xp = Math.max(1, Math.round(fullXp * MIN_XP_FACTOR));
+    const newEntry: LedgerEntry = {
+      id: `log_${Date.now()}_min`,
+      date: currentMockDate,
+      questId: q.id,
+      questTitle: q.title,
+      xp,
+      stat: q.stat,
+      difficulty: q.difficulty,
+      type: q.type,
+      kind: 'minimum',
+    };
+    setLedger([...ledger, newEntry]);
+    maybeCelebrateMastery(q, newEntry);
+    const min = q.intention?.minVersion;
+    showToast(min ? `Never zero — did the minimum: ${min}. +${xp} XP, streak kept.` : `Never zero — minimum logged. +${xp} XP, streak kept.`);
+
+    // After two scaled-down days in a row, ask whether the quest is mis-scoped.
+    const prev1 = getPreviousDateStr(currentMockDate);
+    const prev2 = getPreviousDateStr(prev1);
+    const wasMin = (d: string) => ledger.some((e) => e.questId === q.id && e.date === d && e.kind === 'minimum');
+    if (wasMin(prev1) && wasMin(prev2)) {
+      setTimeout(() => showToast(`That's three minimum days for "${q.title}" — consider making it easier.`), 1700);
     }
   };
 
@@ -1856,6 +1920,7 @@ export default function App() {
                       const config = STATS[q.stat];
                       const streak = getQuestStreak(q);
                       const baseChanceXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+                      const todayIsMin = ledger.some((e) => e.questId === q.id && e.date === currentMockDate && e.kind === 'minimum');
 
                       return (
                         <div
@@ -1870,17 +1935,31 @@ export default function App() {
                             borderLeftColor: config.color,
                           }}
                         >
-                          {/* Left: Custom Check Button */}
-                          <button
-                            onClick={() => handleToggleCheckCircle(q)}
-                            className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
-                          >
+                          {/* Left: complete (full) or log the minimum */}
+                          <div className="flex flex-col items-center gap-1 w-8 shrink-0">
+                            <button
+                              onClick={() => handleToggleCheckCircle(q)}
+                              className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
+                              title="Log a full completion"
+                            >
+                              {completedToday ? (
+                                <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
+                              ) : (
+                                <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                              )}
+                            </button>
                             {completedToday ? (
-                              <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
+                              todayIsMin && <span className="font-mono text-[7px] uppercase tracking-wider text-[#d4af37]/60">min</span>
                             ) : (
-                              <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                              <button
+                                onClick={() => handleLogMinimum(q)}
+                                className="font-mono text-[7px] uppercase tracking-wider text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
+                                title={q.intention?.minVersion ? `Never zero: ${q.intention.minVersion} (40% XP, keeps streak)` : 'Log the minimum version — 40% XP, keeps the streak'}
+                              >
+                                min
+                              </button>
                             )}
-                          </button>
+                          </div>
 
                           {/* Middle: Details */}
                           <div className="flex-1 text-left">
@@ -1894,6 +1973,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
@@ -1949,6 +2029,7 @@ export default function App() {
                       const streak = getQuestStreak(q);
                       const baseChanceXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
                       const currentWeekCount = getWeeklyCompletionsCount(q.id);
+                      const todayIsMin = ledger.some((e) => e.questId === q.id && e.date === currentMockDate && e.kind === 'minimum');
 
                       return (
                         <div
@@ -1963,19 +2044,33 @@ export default function App() {
                             borderLeftColor: config.color,
                           }}
                         >
-                          {/* Left Check Circle button toggles today's log */}
-                          <button
-                            onClick={() => handleToggleCheckCircle(q)}
-                            className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer relative"
-                          >
+                          {/* Left: complete (full) or log the minimum for today */}
+                          <div className="flex flex-col items-center gap-1 w-8 shrink-0">
+                            <button
+                              onClick={() => handleToggleCheckCircle(q)}
+                              className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer relative"
+                              title="Log a full completion"
+                            >
+                              {loggedToday ? (
+                                <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
+                              ) : satisfiedThisWeek ? (
+                                <CheckCircle2 className="w-5.5 h-5.5 opacity-50" style={{ color: config.color }} />
+                              ) : (
+                                <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                              )}
+                            </button>
                             {loggedToday ? (
-                              <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
-                            ) : satisfiedThisWeek ? (
-                              <CheckCircle2 className="w-5.5 h-5.5 opacity-50" style={{ color: config.color }} />
+                              todayIsMin && <span className="font-mono text-[7px] uppercase tracking-wider text-[#d4af37]/60">min</span>
                             ) : (
-                              <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
+                              <button
+                                onClick={() => handleLogMinimum(q)}
+                                className="font-mono text-[7px] uppercase tracking-wider text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
+                                title={q.intention?.minVersion ? `Never zero: ${q.intention.minVersion} (40% XP, keeps streak)` : 'Log the minimum version — 40% XP, keeps the streak'}
+                              >
+                                min
+                              </button>
                             )}
-                          </button>
+                          </div>
 
                           {/* Middle: Info */}
                           <div className="flex-1 text-left">
@@ -1989,6 +2084,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
@@ -2083,6 +2179,7 @@ export default function App() {
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
                             )}
+                            {renderIntention(q)}
                             {renderUnlockBar(q)}
                             <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
