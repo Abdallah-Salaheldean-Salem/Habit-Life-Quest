@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent } from '../types';
+import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal } from '../types';
 
 export interface SaveStateData {
   version: number;
@@ -13,6 +13,7 @@ export interface SaveStateData {
   frictionItems?: FrictionItem[];
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
+  traitGoals?: TraitGoal[];
 }
 
 /**
@@ -159,6 +160,13 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
   if (Array.isArray(remote.triggerEvents)) remote.triggerEvents.forEach((t) => t && t.id && triggerMap.set(t.id, t));
   const mergedTriggerEvents = Array.from(triggerMap.values());
 
+  // 2d. Merge trait goals by id (union) — remote wins on a duplicate id so
+  // freshly-logged check-ins from another device are preserved.
+  const traitMap = new Map<string, TraitGoal>();
+  if (Array.isArray(local.traitGoals)) local.traitGoals.forEach((g) => g && g.id && traitMap.set(g.id, g));
+  if (Array.isArray(remote.traitGoals)) remote.traitGoals.forEach((g) => g && g.id && traitMap.set(g.id, g));
+  const mergedTraitGoals = Array.from(traitMap.values());
+
   // 3. Profiles and date
   // Prefer remote details unless they are defaults or empty
   const isLocalDefault = local.userName === 'Abdallah' || !local.userName;
@@ -178,6 +186,7 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     frictionItems: mergedFrictionItems,
     debuffs: mergedDebuffs,
     triggerEvents: mergedTriggerEvents,
+    traitGoals: mergedTraitGoals,
     currentMockDate: mergedCurrentMockDate,
     hasCreatedCharacter: mergedHasCreatedCharacter,
   };

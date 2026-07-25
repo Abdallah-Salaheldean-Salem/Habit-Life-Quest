@@ -41,7 +41,7 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem, Debuff, TriggerEvent } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem, Debuff, TriggerEvent, TraitGoal, TraitId, TraitCheckin } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
@@ -49,6 +49,7 @@ import TaskSkillTree from './components/TaskSkillTree';
 import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import DebuffPanel from './components/DebuffPanel';
+import TraitPanel from './components/TraitPanel';
 import MasteryCelebration from './components/MasteryCelebration';
 import { ACHIEVEMENTS } from './utils/achievements';
 
@@ -77,7 +78,7 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 // Minimum (never-zero) completions earn a fraction of the full XP.
 const MIN_XP_FACTOR = 0.4;
@@ -143,6 +144,7 @@ export default function App() {
   const [expandedFriction, setExpandedFriction] = useState<Set<string>>(new Set());
   const [debuffs, setDebuffs] = useState<Debuff[]>([]);
   const [triggerEvents, setTriggerEvents] = useState<TriggerEvent[]>([]);
+  const [traitGoals, setTraitGoals] = useState<TraitGoal[]>([]);
   // The debuff module's data is the most sensitive in the app — kept on this
   // device by default, and only synced if the user turns it on.
   const [debuffLocalOnly, setDebuffLocalOnly] = useState<boolean>(true);
@@ -308,6 +310,12 @@ export default function App() {
     if (updated.version < 7) {
       updated.debuffs = updated.debuffs || [];
       updated.triggerEvents = updated.triggerEvents || [];
+      updated.version = 7;
+    }
+
+    // v7 -> v8: trait / personality engine.
+    if (updated.version < 8) {
+      updated.traitGoals = updated.traitGoals || [];
       updated.version = SCHEMA_VERSION;
     }
 
@@ -330,6 +338,7 @@ export default function App() {
           frictionItems,
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
+          traitGoals,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -348,6 +357,7 @@ export default function App() {
               frictionItems: migrated.frictionItems || [],
               debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
               triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
+              traitGoals: migrated.traitGoals || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -364,6 +374,7 @@ export default function App() {
         setQuests(merged.quests);
         setLedger(merged.ledger);
         setFrictionItems(merged.frictionItems || []);
+        setTraitGoals(merged.traitGoals || []);
         if (!debuffLocalOnly) {
           setDebuffs(merged.debuffs || []);
           setTriggerEvents(merged.triggerEvents || []);
@@ -388,6 +399,7 @@ export default function App() {
           frictionItems,
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
+          traitGoals,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -406,6 +418,7 @@ export default function App() {
               frictionItems: migrated.frictionItems || [],
               debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
               triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
+              traitGoals: migrated.traitGoals || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -448,6 +461,7 @@ export default function App() {
         setFrictionItems(migrated.frictionItems || []);
         setDebuffs(migrated.debuffs || []);
         setTriggerEvents(migrated.triggerEvents || []);
+        setTraitGoals(migrated.traitGoals || []);
         if (migrated.debuffLocalOnly !== undefined) setDebuffLocalOnly(migrated.debuffLocalOnly);
         if (migrated.currentMockDate) {
           setCurrentMockDate(migrated.currentMockDate);
@@ -503,6 +517,7 @@ export default function App() {
         frictionItems,
         debuffs,
         triggerEvents,
+        traitGoals,
         debuffLocalOnly,
         currentMockDate,
         hasCreatedCharacter,
@@ -510,7 +525,7 @@ export default function App() {
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in)
   useEffect(() => {
@@ -526,6 +541,7 @@ export default function App() {
           frictionItems,
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
+          traitGoals,
           currentMockDate,
           hasCreatedCharacter
         };
@@ -584,7 +600,7 @@ export default function App() {
   const characterTitle = getCharacterTitle(levelProgress.level);
 
   // Total completions count
-  const totalCleared = ledger.filter((e) => e.kind !== 'friction' && e.kind !== 'debuff').length;
+  const totalCleared = ledger.filter((e) => e.kind !== 'friction' && e.kind !== 'debuff' && e.kind !== 'trait').length;
 
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
@@ -807,6 +823,54 @@ export default function App() {
     setTriggerEvents((prev) => [...prev, ev]);
   };
 
+  // ---------------------------------------------------------
+  // TRAIT ENGINE — the slow, deliberate reshaping of personality.
+  // ---------------------------------------------------------
+  const grantTraitXp = (amount: number, note: string) => {
+    const entry: LedgerEntry = {
+      id: `trait_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      date: currentMockDate,
+      questId: 'trait_xp',
+      questTitle: note,
+      xp: amount,
+      stat: 'mind',
+      difficulty: 'normal',
+      type: 'milestone',
+      kind: 'trait',
+    };
+    setLedger((l) => [...l, entry]);
+  };
+
+  const handleAddTraitGoal = (trait: TraitId, facet: string, role: string, questIds: string[]) => {
+    const g: TraitGoal = {
+      id: `tg_${Date.now()}`,
+      trait,
+      facet,
+      role,
+      questIds,
+      checkins: [],
+      createdAt: currentMockDate,
+    };
+    setTraitGoals((prev) => [...prev, g]);
+    grantTraitXp(25, `Trait goal: ${facet}`);
+    showToast(`Forging ${facet}. Rehearse it — the first check-in is six weeks out.`);
+  };
+
+  const handleUpdateTraitGoal = (id: string, patch: Partial<TraitGoal>) => {
+    setTraitGoals((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  };
+
+  const handleDeleteTraitGoal = (id: string) => {
+    setTraitGoals((prev) => prev.filter((g) => g.id !== id));
+  };
+
+  const handleAddTraitCheckin = (goalId: string, score: 1 | 2 | 3 | 4 | 5) => {
+    const c: TraitCheckin = { id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, at: currentMockDate, score };
+    setTraitGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, checkins: [...g.checkins, c] } : g)));
+    grantTraitXp(40, 'Six-week trait check-in');
+    showToast('Check-in logged. Slow change is still change. +40 XP.');
+  };
+
   const renderFrictionSection = (q: Quest) => {
     const items = frictionItems.filter((f) => f.questId === q.id);
     const doneCount = items.filter((f) => f.done).length;
@@ -957,6 +1021,7 @@ export default function App() {
       frictionItems,
       debuffs,
       triggerEvents,
+      traitGoals,
     });
     return count + (isUnlocked ? 1 : 0);
   }, 0);
@@ -2067,6 +2132,7 @@ export default function App() {
                     frictionItems,
                     debuffs,
                     triggerEvents,
+                    traitGoals,
                   });
 
                   return (
@@ -2121,6 +2187,18 @@ export default function App() {
               onDeleteDebuff={handleDeleteDebuff}
               onAddTrigger={handleAddTrigger}
               grantXp={grantDebuffXp}
+              showToast={showToast}
+            />
+
+            {/* TRAITS PANEL — the slow reshaping of personality */}
+            <TraitPanel
+              traitGoals={traitGoals}
+              quests={quests}
+              currentDate={currentMockDate}
+              onAddGoal={handleAddTraitGoal}
+              onUpdateGoal={handleUpdateTraitGoal}
+              onDeleteGoal={handleDeleteTraitGoal}
+              onAddCheckin={handleAddTraitCheckin}
               showToast={showToast}
             />
 
