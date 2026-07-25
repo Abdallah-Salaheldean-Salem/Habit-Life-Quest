@@ -140,7 +140,7 @@ export type AutomaticityState = 'forming' | 'sticking' | 'automatic';
 
 const DIFFICULTY_TARGET_DAYS: Record<QuestDifficulty, number> = { easy: 40, normal: 66, hard: 100 };
 
-function daysBetween(a: string, b: string): number {
+export function daysBetween(a: string, b: string): number {
   return Math.round(
     (new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000,
   );

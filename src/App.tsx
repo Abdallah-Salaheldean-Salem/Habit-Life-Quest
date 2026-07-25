@@ -41,13 +41,14 @@ import {
   TrendingDown
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem, Debuff, TriggerEvent } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
 import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
+import DebuffPanel from './components/DebuffPanel';
 import MasteryCelebration from './components/MasteryCelebration';
 import { ACHIEVEMENTS } from './utils/achievements';
 
@@ -76,7 +77,7 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 // Minimum (never-zero) completions earn a fraction of the full XP.
 const MIN_XP_FACTOR = 0.4;
@@ -140,6 +141,11 @@ export default function App() {
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [frictionItems, setFrictionItems] = useState<FrictionItem[]>([]);
   const [expandedFriction, setExpandedFriction] = useState<Set<string>>(new Set());
+  const [debuffs, setDebuffs] = useState<Debuff[]>([]);
+  const [triggerEvents, setTriggerEvents] = useState<TriggerEvent[]>([]);
+  // The debuff module's data is the most sensitive in the app — kept on this
+  // device by default, and only synced if the user turns it on.
+  const [debuffLocalOnly, setDebuffLocalOnly] = useState<boolean>(true);
   const [currentMockDate, setCurrentMockDate] = useState<string>('2026-07-18'); // Saturdays match the mockup
   const [timeframe, setTimeframe] = useState<'7' | '30' | 'all'>('30');
   
@@ -295,6 +301,13 @@ export default function App() {
     // v5 -> v6: friction ledger (per-quest environment changes).
     if (updated.version < 6) {
       updated.frictionItems = updated.frictionItems || [];
+      updated.version = 6;
+    }
+
+    // v6 -> v7: debuff engine (addiction interruption).
+    if (updated.version < 7) {
+      updated.debuffs = updated.debuffs || [];
+      updated.triggerEvents = updated.triggerEvents || [];
       updated.version = SCHEMA_VERSION;
     }
 
@@ -315,6 +328,8 @@ export default function App() {
           quests,
           ledger,
           frictionItems,
+          debuffs: debuffLocalOnly ? [] : debuffs,
+          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -331,6 +346,8 @@ export default function App() {
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
+              debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
+              triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -347,6 +364,10 @@ export default function App() {
         setQuests(merged.quests);
         setLedger(merged.ledger);
         setFrictionItems(merged.frictionItems || []);
+        if (!debuffLocalOnly) {
+          setDebuffs(merged.debuffs || []);
+          setTriggerEvents(merged.triggerEvents || []);
+        }
         if (merged.currentMockDate) {
           setCurrentMockDate(merged.currentMockDate);
         }
@@ -365,6 +386,8 @@ export default function App() {
           quests,
           ledger,
           frictionItems,
+          debuffs: debuffLocalOnly ? [] : debuffs,
+          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -381,6 +404,8 @@ export default function App() {
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
+              debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
+              triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -421,6 +446,9 @@ export default function App() {
         setQuests(migrated.quests);
         setLedger(migrated.ledger);
         setFrictionItems(migrated.frictionItems || []);
+        setDebuffs(migrated.debuffs || []);
+        setTriggerEvents(migrated.triggerEvents || []);
+        if (migrated.debuffLocalOnly !== undefined) setDebuffLocalOnly(migrated.debuffLocalOnly);
         if (migrated.currentMockDate) {
           setCurrentMockDate(migrated.currentMockDate);
         }
@@ -473,13 +501,16 @@ export default function App() {
         quests,
         ledger,
         frictionItems,
+        debuffs,
+        triggerEvents,
+        debuffLocalOnly,
         currentMockDate,
         hasCreatedCharacter,
         syncEmail
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, frictionItems, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in)
   useEffect(() => {
@@ -493,6 +524,8 @@ export default function App() {
           quests,
           ledger,
           frictionItems,
+          debuffs: debuffLocalOnly ? [] : debuffs,
+          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           currentMockDate,
           hasCreatedCharacter
         };
@@ -513,6 +546,8 @@ export default function App() {
     setQuests([]);
     setLedger([]);
     setFrictionItems([]);
+    setDebuffs([]);
+    setTriggerEvents([]);
     setHasCreatedCharacter(false);
     setCurrentMockDate(toDateStr(new Date()));
     showToast('Save Data Wiped. Beginning anew.');
@@ -525,6 +560,8 @@ export default function App() {
     setQuests(mock.quests);
     setLedger(mock.ledger);
     setFrictionItems(mock.frictionItems || []);
+    setDebuffs([]);
+    setTriggerEvents([]);
     setCurrentMockDate('2026-07-18');
     showToast('Loaded Original Mockup State!');
   };
@@ -547,7 +584,7 @@ export default function App() {
   const characterTitle = getCharacterTitle(levelProgress.level);
 
   // Total completions count
-  const totalCleared = ledger.filter((e) => e.kind !== 'friction').length;
+  const totalCleared = ledger.filter((e) => e.kind !== 'friction' && e.kind !== 'debuff').length;
 
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
@@ -719,6 +756,55 @@ export default function App() {
       else next.add(questId);
       return next;
     });
+  };
+
+  // ---------------------------------------------------------
+  // DEBUFF ENGINE — behaviors to remove.
+  // ---------------------------------------------------------
+  const grantDebuffXp = (amount: number, note: string) => {
+    const entry: LedgerEntry = {
+      id: `debuff_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      date: currentMockDate,
+      questId: 'debuff_xp',
+      questTitle: note,
+      xp: amount,
+      stat: 'spirit',
+      difficulty: 'normal',
+      type: 'milestone',
+      kind: 'debuff',
+    };
+    setLedger((l) => [...l, entry]);
+  };
+
+  const handleAddDebuff = (name: string, lapsePlan: string, needsMedical: boolean) => {
+    const d: Debuff = {
+      id: `db_${Date.now()}`,
+      name,
+      stage: 'mapping',
+      cueRemovals: [],
+      mode: 'abstinence',
+      cleanSince: currentMockDate,
+      totalCleanDays: 0,
+      lapsePlan,
+      needsMedicalNotice: needsMedical,
+      createdAt: currentMockDate,
+    };
+    setDebuffs((prev) => [...prev, d]);
+    showToast(`Mapping "${name}" — log triggers for two weeks.`);
+  };
+
+  const handleUpdateDebuff = (id: string, patch: Partial<Debuff>) => {
+    setDebuffs((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+  };
+
+  const handleDeleteDebuff = (id: string) => {
+    setDebuffs((prev) => prev.filter((d) => d.id !== id));
+    setTriggerEvents((prev) => prev.filter((t) => t.debuffId !== id));
+  };
+
+  const handleAddTrigger = (t: Omit<TriggerEvent, 'id'>) => {
+    const ev: TriggerEvent = { ...t, id: `te_${Date.now()}_${Math.random().toString(36).slice(2, 5)}` };
+    setTriggerEvents((prev) => [...prev, ev]);
   };
 
   const renderFrictionSection = (q: Quest) => {
@@ -2018,6 +2104,21 @@ export default function App() {
                 })}
               </div>
             </div>
+
+            {/* DEBUFFS PANEL — addiction interruption */}
+            <DebuffPanel
+              debuffs={debuffs}
+              triggerEvents={triggerEvents}
+              currentDate={currentMockDate}
+              localOnly={debuffLocalOnly}
+              onToggleLocalOnly={() => setDebuffLocalOnly((v) => !v)}
+              onAddDebuff={handleAddDebuff}
+              onUpdateDebuff={handleUpdateDebuff}
+              onDeleteDebuff={handleDeleteDebuff}
+              onAddTrigger={handleAddTrigger}
+              grantXp={grantDebuffXp}
+              showToast={showToast}
+            />
 
           </div>
 

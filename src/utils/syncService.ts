@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { Quest, LedgerEntry, FrictionItem } from '../types';
+import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent } from '../types';
 
 export interface SaveStateData {
   version: number;
@@ -11,6 +11,8 @@ export interface SaveStateData {
   hasCreatedCharacter: boolean;
   syncEmail?: string | null;
   frictionItems?: FrictionItem[];
+  debuffs?: Debuff[];
+  triggerEvents?: TriggerEvent[];
 }
 
 /**
@@ -146,6 +148,17 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
   }
   const mergedFrictionItems = Array.from(frictionMap.values());
 
+  // 2c. Merge debuffs + trigger events by id (union).
+  const debuffMap = new Map<string, Debuff>();
+  if (Array.isArray(local.debuffs)) local.debuffs.forEach((d) => d && d.id && debuffMap.set(d.id, d));
+  if (Array.isArray(remote.debuffs)) remote.debuffs.forEach((d) => d && d.id && debuffMap.set(d.id, d));
+  const mergedDebuffs = Array.from(debuffMap.values());
+
+  const triggerMap = new Map<string, TriggerEvent>();
+  if (Array.isArray(local.triggerEvents)) local.triggerEvents.forEach((t) => t && t.id && triggerMap.set(t.id, t));
+  if (Array.isArray(remote.triggerEvents)) remote.triggerEvents.forEach((t) => t && t.id && triggerMap.set(t.id, t));
+  const mergedTriggerEvents = Array.from(triggerMap.values());
+
   // 3. Profiles and date
   // Prefer remote details unless they are defaults or empty
   const isLocalDefault = local.userName === 'Abdallah' || !local.userName;
@@ -163,6 +176,8 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     quests: mergedQuests,
     ledger: mergedLedger,
     frictionItems: mergedFrictionItems,
+    debuffs: mergedDebuffs,
+    triggerEvents: mergedTriggerEvents,
     currentMockDate: mergedCurrentMockDate,
     hasCreatedCharacter: mergedHasCreatedCharacter,
   };
