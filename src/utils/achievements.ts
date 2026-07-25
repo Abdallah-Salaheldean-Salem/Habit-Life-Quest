@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FrictionItem, LedgerEntry, Quest, StatType } from '../types';
+import { Debuff, FrictionItem, LedgerEntry, Quest, StatType, TraitGoal, TriggerEvent } from '../types';
 
 export interface AchievementContext {
   ledger: LedgerEntry[];
@@ -12,6 +12,9 @@ export interface AchievementContext {
   statRanks: Record<StatType, number>;
   getQuestStreak: (q: Quest) => number;
   frictionItems: FrictionItem[];
+  debuffs: Debuff[];
+  triggerEvents: TriggerEvent[];
+  traitGoals: TraitGoal[];
 }
 
 export interface Achievement {
@@ -26,6 +29,10 @@ export interface Achievement {
 const totalXp = (ledger: LedgerEntry[]): number =>
   ledger.reduce((sum, e) => sum + e.xp, 0);
 
+/** Ledger entries that are actual quest completions (not module XP). */
+const questCompletions = (ledger: LedgerEntry[]): number =>
+  ledger.filter((e) => e.kind !== 'friction' && e.kind !== 'debuff' && e.kind !== 'trait').length;
+
 const bestQuestStreak = (ctx: AchievementContext): number =>
   ctx.quests.reduce((best, q) => Math.max(best, ctx.getQuestStreak(q)), 0);
 
@@ -35,7 +42,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     numIcon: 'I',
     title: 'First Steps',
     description: 'Clear your very first quest.',
-    check: (ctx) => ctx.ledger.length >= 1,
+    check: (ctx) => questCompletions(ctx.ledger) >= 1,
   },
   {
     id: 'getting_consistent',
@@ -70,7 +77,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     numIcon: 'VI',
     title: 'Dedicated',
     description: 'Log 50 quest completions.',
-    check: (ctx) => ctx.ledger.length >= 50,
+    check: (ctx) => questCompletions(ctx.ledger) >= 50,
   },
   {
     id: 'millennial_xp',
@@ -105,7 +112,7 @@ export const ACHIEVEMENTS: Achievement[] = [
     numIcon: 'XI',
     title: 'Completionist',
     description: 'Log 100 quest completions.',
-    check: (ctx) => ctx.ledger.length >= 100,
+    check: (ctx) => questCompletions(ctx.ledger) >= 100,
   },
   {
     id: 'iron_will',
@@ -120,5 +127,41 @@ export const ACHIEVEMENTS: Achievement[] = [
     title: 'Architect',
     description: 'Complete 10 environment changes — design beats willpower.',
     check: (ctx) => ctx.frictionItems.filter((f) => f.done).length >= 10,
+  },
+  {
+    id: 'cartographer',
+    numIcon: 'XIV',
+    title: 'Cartographer',
+    description: 'Map a debuff to the point of naming its job — then start quitting.',
+    check: (ctx) => ctx.debuffs.some((d) => d.stage !== 'mapping'),
+  },
+  {
+    id: 'tide_walker',
+    numIcon: 'XV',
+    title: 'Tide Walker',
+    description: 'Surf 25 urges without acting — every wave peaks and passes.',
+    check: (ctx) =>
+      ctx.triggerEvents.filter((t) => t.precededBy === 'urge' && !t.acted).length >= 25,
+  },
+  {
+    id: 'honest_ledger',
+    numIcon: 'XVI',
+    title: 'Honest Ledger',
+    description: 'Debrief a lapse instead of hiding it — the total never resets.',
+    check: (ctx) => ctx.triggerEvents.some((t) => t.precededBy === 'lapse'),
+  },
+  {
+    id: 'becoming',
+    numIcon: 'XVII',
+    title: 'Becoming',
+    description: 'Bind a trait to two habits — rehearse the person you want to be.',
+    check: (ctx) => ctx.traitGoals.some((g) => g.questIds.length >= 2),
+  },
+  {
+    id: 'self_author',
+    numIcon: 'XVIII',
+    title: 'Self-Author',
+    description: 'Log three six-week trait check-ins — proof a personality can move.',
+    check: (ctx) => ctx.traitGoals.reduce((n, g) => n + g.checkins.length, 0) >= 3,
   },
 ];

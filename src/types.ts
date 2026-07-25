@@ -129,9 +129,10 @@ export interface LedgerEntry {
    * How the XP was earned. 'full' is a normal completion; 'minimum' is the
    * never-zero fallback (40% XP) that still preserves the streak; 'friction'
    * is a one-time environment change (not a quest completion). Legacy entries
-   * with no kind are treated as 'full'.
+   * with no kind are treated as 'full'. 'debuff' and 'trait' are XP from the
+   * behavior-change modules, not quest completions.
    */
-  kind?: 'full' | 'minimum' | 'friction' | 'debuff';
+  kind?: 'full' | 'minimum' | 'friction' | 'debuff' | 'trait';
 }
 
 /**
@@ -191,6 +192,80 @@ export interface TriggerEvent {
   /** Did the urge win? */
   acted: boolean;
   intensity: 1 | 2 | 3 | 4 | 5;
+  /** For a surfed urge: intensity after the timer, to chart the decay. */
+  intensityAfter?: 1 | 2 | 3 | 4 | 5;
+}
+
+// ---------------------------------------------------------
+// TRAIT / PERSONALITY ENGINE
+// Personality changes through sustained behavior, not intention. A TraitGoal
+// picks one Big-Five facet to strengthen, binds it to at least two quests
+// (the "role" you rehearse daily), and re-measures on a six-week cadence —
+// long enough for a real slope to show.
+// ---------------------------------------------------------
+export type TraitId =
+  | 'conscientiousness'
+  | 'openness'
+  | 'extraversion'
+  | 'agreeableness'
+  | 'stability';
+
+export interface TraitConfig {
+  name: string;
+  /** The facets a user can choose to strengthen. */
+  facets: string[];
+  /** One-line description of what moving this trait feels like. */
+  blurb: string;
+}
+
+export const TRAITS: Record<TraitId, TraitConfig> = {
+  conscientiousness: {
+    name: 'Conscientiousness',
+    facets: ['Industriousness', 'Orderliness', 'Self-Discipline'],
+    blurb: 'Showing up, finishing, keeping order — the trait that most predicts a life going well.',
+  },
+  openness: {
+    name: 'Openness',
+    facets: ['Curiosity', 'Creativity', 'Depth'],
+    blurb: 'Seeking the new idea, the harder book, the unfamiliar path.',
+  },
+  extraversion: {
+    name: 'Extraversion',
+    facets: ['Assertiveness', 'Enthusiasm', 'Sociability'],
+    blurb: 'Speaking up, reaching out, bringing energy into a room.',
+  },
+  agreeableness: {
+    name: 'Agreeableness',
+    facets: ['Compassion', 'Politeness', 'Trust'],
+    blurb: 'Warmth and good faith — being someone others can lean on.',
+  },
+  stability: {
+    name: 'Emotional Stability',
+    facets: ['Even Temper', 'Resilience', 'Contentment'],
+    blurb: 'Riding out the storm without being swept away by it.',
+  },
+};
+
+/** A single six-week self-rating of how strongly a facet is felt (1–5). */
+export interface TraitCheckin {
+  id: string;
+  /** ISO date the check-in was logged. */
+  at: string;
+  score: 1 | 2 | 3 | 4 | 5;
+}
+
+export interface TraitGoal {
+  id: string;
+  trait: TraitId;
+  /** The specific facet being strengthened, e.g. "Industriousness". */
+  facet: string;
+  /** The identity the user is rehearsing — "I am someone who…". */
+  role: string;
+  /** The quests that enact this trait — at least two are required. */
+  questIds: string[];
+  /** Six-week slope measurements, oldest first. */
+  checkins: TraitCheckin[];
+  createdAt: string;
 }
 
 /** Shape used by the local JSON export/import. */
@@ -204,4 +279,5 @@ export interface SaveState {
   frictionItems?: FrictionItem[];
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
+  traitGoals?: TraitGoal[];
 }
