@@ -191,6 +191,8 @@ export interface TriggerEvent {
   /** Did the urge win? */
   acted: boolean;
   intensity: 1 | 2 | 3 | 4 | 5;
+  /** For a surfed urge: intensity after the timer, to chart the decay. */
+  intensityAfter?: 1 | 2 | 3 | 4 | 5;
 }
 
 /** Shape used by the local JSON export/import. */

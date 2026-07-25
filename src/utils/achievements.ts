@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FrictionItem, LedgerEntry, Quest, StatType } from '../types';
+import { Debuff, FrictionItem, LedgerEntry, Quest, StatType, TriggerEvent } from '../types';
 
 export interface AchievementContext {
   ledger: LedgerEntry[];
@@ -12,6 +12,8 @@ export interface AchievementContext {
   statRanks: Record<StatType, number>;
   getQuestStreak: (q: Quest) => number;
   frictionItems: FrictionItem[];
+  debuffs: Debuff[];
+  triggerEvents: TriggerEvent[];
 }
 
 export interface Achievement {
@@ -120,5 +122,27 @@ export const ACHIEVEMENTS: Achievement[] = [
     title: 'Architect',
     description: 'Complete 10 environment changes — design beats willpower.',
     check: (ctx) => ctx.frictionItems.filter((f) => f.done).length >= 10,
+  },
+  {
+    id: 'cartographer',
+    numIcon: 'XIV',
+    title: 'Cartographer',
+    description: 'Map a debuff to the point of naming its job — then start quitting.',
+    check: (ctx) => ctx.debuffs.some((d) => d.stage !== 'mapping'),
+  },
+  {
+    id: 'tide_walker',
+    numIcon: 'XV',
+    title: 'Tide Walker',
+    description: 'Surf 25 urges without acting — every wave peaks and passes.',
+    check: (ctx) =>
+      ctx.triggerEvents.filter((t) => t.precededBy === 'urge' && !t.acted).length >= 25,
+  },
+  {
+    id: 'honest_ledger',
+    numIcon: 'XVI',
+    title: 'Honest Ledger',
+    description: 'Debrief a lapse instead of hiding it — the total never resets.',
+    check: (ctx) => ctx.triggerEvents.some((t) => t.precededBy === 'lapse'),
   },
 ];

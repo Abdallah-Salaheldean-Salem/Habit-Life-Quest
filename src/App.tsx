@@ -955,6 +955,8 @@ export default function App() {
       statRanks,
       getQuestStreak,
       frictionItems,
+      debuffs,
+      triggerEvents,
     });
     return count + (isUnlocked ? 1 : 0);
   }, 0);
@@ -2063,6 +2065,8 @@ export default function App() {
                     statRanks,
                     getQuestStreak,
                     frictionItems,
+                    debuffs,
+                    triggerEvents,
                   });
 
                   return (

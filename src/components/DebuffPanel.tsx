@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Plus, Trash2, ShieldAlert, X, ChevronDown, ChevronUp, Lock, LifeBuoy } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind } from 'lucide-react';
 import { Debuff, TriggerEvent, CueRemoval } from '../types';
 import { daysBetween } from '../utils/logic';
 import { needsMedicalNotice, containsDistress, CRISIS_RESOURCES } from '../utils/safety';
@@ -89,6 +89,22 @@ function MappingCard({
   const day = Math.max(0, daysBetween(debuff.createdAt, currentDate));
   const canAdvance = fn.trim().length > 0 && replacement.trim().length > 0;
 
+  // Pattern report — surfaces once there's enough logged to see the shape.
+  const topOf = (vals: string[]): { label: string; count: number } | null => {
+    const counts = new Map<string, number>();
+    vals.forEach((v) => v && counts.set(v, (counts.get(v) || 0) + 1));
+    let best: { label: string; count: number } | null = null;
+    counts.forEach((count, label) => {
+      if (!best || count > best.count) best = { label, count };
+    });
+    return best;
+  };
+  const showReport = events.length >= 3;
+  const topMood = showReport ? topOf(events.map((e) => e.mood)) : null;
+  const topPlace = showReport ? topOf(events.map((e) => e.place)) : null;
+  const actedCount = events.filter((e) => e.acted).length;
+  const avgIntensity = events.length ? events.reduce((s, e) => s + e.intensity, 0) / events.length : 0;
+
   const submitTrigger = () => {
     if (!place.trim()) {
       showToast('Where were you? Add a place.');
@@ -163,6 +179,26 @@ function MappingCard({
         </div>
       )}
 
+      {showReport && (
+        <div className="mt-3 bg-[#0c0c1b]/60 border border-blue-500/20 rounded-lg p-3">
+          <p className="font-mono text-[9px] uppercase tracking-widest text-blue-400 mb-1.5">
+            {day >= 14 ? 'Your two-week map' : 'What the map shows so far'}
+          </p>
+          <ul className="space-y-1 font-mono text-[10px] text-slate-400">
+            {topMood && (
+              <li>Most often when you feel <span className="text-slate-200">{topMood.label}</span> <span className="text-slate-600">({topMood.count}×)</span></li>
+            )}
+            {topPlace && (
+              <li>Usually at <span className="text-slate-200">{topPlace.label}</span> <span className="text-slate-600">({topPlace.count}×)</span></li>
+            )}
+            <li>Acted on <span className="text-rose-300">{actedCount}</span> of <span className="text-slate-200">{events.length}</span> · avg intensity <span className="text-slate-200">{avgIntensity.toFixed(1)}</span></li>
+          </ul>
+          <p className="font-serif italic text-[11px] text-slate-500 mt-1.5 leading-relaxed">
+            The trigger is rarely the thing itself — it's the {topMood ? topMood.label : 'feeling'} underneath. Name what it's really for below.
+          </p>
+        </div>
+      )}
+
       {/* Advance to active — needs function + replacement (14 days recommended) */}
       <div className="mt-3 pt-3 border-t border-white/5 space-y-2">
         <p className="font-mono text-[9px] text-slate-500 uppercase tracking-wider">Before a quit plan: name the job</p>
@@ -184,9 +220,151 @@ function MappingCard({
   );
 }
 
+// ---- Intensity picker (1–5 dots) ----
+function IntensityDots({ value, onChange }: { value: 1 | 2 | 3 | 4 | 5; onChange: (v: 1 | 2 | 3 | 4 | 5) => void }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {[1, 2, 3, 4, 5].map((i) => (
+        <button key={i} type="button" onClick={() => onChange(i as 1 | 2 | 3 | 4 | 5)}
+          className={`w-6 h-6 rounded-full border text-[10px] font-mono transition-all ${value >= i ? 'bg-rose-500/70 border-rose-400 text-[#050510]' : 'border-white/20 text-slate-600'}`}>
+          {i}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---- Urge-surf timer: the therapeutic centerpiece ----
+// A breathing pacer that helps the user ride the wave instead of acting on it.
+// Captures intensity before and after so the decay can be charted.
+function UrgeSurfer({
+  onComplete,
+  onCancel,
+}: {
+  onComplete: (before: 1 | 2 | 3 | 4 | 5, after: 1 | 2 | 3 | 4 | 5) => void;
+  onCancel: () => void;
+}) {
+  const [phase, setPhase] = useState<'before' | 'surf' | 'after'>('before');
+  const [before, setBefore] = useState<1 | 2 | 3 | 4 | 5>(4);
+  const [after, setAfter] = useState<1 | 2 | 3 | 4 | 5>(2);
+  const [elapsed, setElapsed] = useState(0);
+  const [inhale, setInhale] = useState(true);
+  const startRef = useRef(0);
+
+  // Running clock while surfing.
+  useEffect(() => {
+    if (phase !== 'surf') return;
+    startRef.current = Date.now();
+    setElapsed(0);
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startRef.current) / 1000)), 250);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  // Breathing cadence — 5s in, 5s out.
+  useEffect(() => {
+    if (phase !== 'surf') return;
+    setInhale(true);
+    const t = setInterval(() => setInhale((v) => !v), 5000);
+    return () => clearInterval(t);
+  }, [phase]);
+
+  const mmss = `${Math.floor(elapsed / 60)}:${String(elapsed % 60).padStart(2, '0')}`;
+
+  return (
+    <div className="mt-2 bg-[#0c0c1b]/80 border border-emerald-500/25 rounded-lg p-3.5">
+      {phase === 'before' && (
+        <>
+          <p className="font-serif text-[13px] text-slate-200">How strong is the urge right now?</p>
+          <p className="font-mono text-[9px] text-slate-500 mt-0.5 mb-2.5">You don't have to fight it — just watch it and breathe.</p>
+          <div className="flex items-center justify-between gap-2">
+            <IntensityDots value={before} onChange={setBefore} />
+            <button type="button" onClick={() => setPhase('surf')}
+              className="bg-emerald-500/90 hover:bg-emerald-400 text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded flex items-center gap-1">
+              <Wind className="w-3 h-3" /> Start
+            </button>
+          </div>
+          <button type="button" onClick={onCancel} className="mt-2 font-mono text-[8px] text-slate-600 hover:text-slate-400 uppercase tracking-wider">Cancel</button>
+        </>
+      )}
+
+      {phase === 'surf' && (
+        <div className="flex flex-col items-center text-center py-1">
+          <div className="relative w-24 h-24 flex items-center justify-center my-1">
+            <div
+              className="absolute rounded-full bg-emerald-500/15 border border-emerald-400/40"
+              style={{
+                width: '100%',
+                height: '100%',
+                transform: `scale(${inhale ? 1 : 0.55})`,
+                transition: 'transform 5000ms ease-in-out',
+              }}
+            />
+            <span className="relative font-mono text-[10px] uppercase tracking-widest text-emerald-300">
+              {inhale ? 'Breathe in' : 'Breathe out'}
+            </span>
+          </div>
+          <p className="font-mono text-lg text-slate-300 tabular-nums mt-1">{mmss}</p>
+          <p className="font-serif italic text-[12px] text-slate-400 mt-1.5 leading-relaxed max-w-[15rem]">
+            The urge is a wave. It rises, crests, and falls on its own — you don't have to do anything but let it.
+          </p>
+          <button type="button" onClick={() => setPhase('after')}
+            className="mt-3 w-full border border-emerald-500/40 hover:bg-emerald-500/10 text-emerald-300 font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 rounded">
+            The wave has passed
+          </button>
+        </div>
+      )}
+
+      {phase === 'after' && (
+        <>
+          <p className="font-serif text-[13px] text-slate-200">And now — how strong is it?</p>
+          <p className="font-mono text-[9px] text-slate-500 mt-0.5 mb-2.5">Notice the difference. That drop is the skill growing.</p>
+          <div className="flex items-center justify-between gap-2">
+            <IntensityDots value={after} onChange={setAfter} />
+            <button type="button" onClick={() => onComplete(before, after)}
+              className="bg-gradient-to-r from-[#aa7c11] to-[#d4af37] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider px-3 py-1.5 rounded">
+              Rode it out
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---- Decay chart: proof the urges shrink when surfed ----
+function DecayChart({ surfs }: { surfs: TriggerEvent[] }) {
+  const charted = surfs.filter((s) => typeof s.intensityAfter === 'number').slice(-12);
+  if (charted.length === 0) return null;
+  const drops = charted.map((s) => s.intensity - (s.intensityAfter as number));
+  const avgDrop = drops.reduce((a, b) => a + b, 0) / drops.length;
+  return (
+    <div className="mt-3">
+      <div className="flex justify-between font-mono text-[9px] uppercase tracking-wider text-slate-500 mb-1.5">
+        <span>Urges surfed</span>
+        <span className="text-emerald-400">−{avgDrop.toFixed(1)} avg drop</span>
+      </div>
+      <div className="flex items-end gap-1 h-12 bg-[#0c0c1b] border border-white/5 rounded p-1.5">
+        {charted.map((s) => {
+          const beforeH = (s.intensity / 5) * 100;
+          const afterH = ((s.intensityAfter as number) / 5) * 100;
+          return (
+            <div key={s.id} className="flex-1 min-w-0 h-full flex items-end justify-center" title={`${s.intensity} → ${s.intensityAfter}`}>
+              <div className="w-full max-w-[10px] rounded-sm bg-rose-500/30 relative flex items-end" style={{ height: `${beforeH}%` }}>
+                <div className="w-full rounded-sm bg-emerald-400/80" style={{ height: `${(afterH / beforeH) * 100}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="font-mono text-[8px] text-slate-600 mt-1">rose = urge at its peak · green = what was left after you breathed</p>
+    </div>
+  );
+}
+
 // ---- Active stage ----
 function ActiveCard({
   debuff,
+  events,
   currentDate,
   onUpdateDebuff,
   onAddTrigger,
@@ -194,6 +372,7 @@ function ActiveCard({
   showToast,
 }: {
   debuff: Debuff;
+  events: TriggerEvent[];
   currentDate: string;
   onUpdateDebuff: DebuffPanelProps['onUpdateDebuff'];
   onAddTrigger: DebuffPanelProps['onAddTrigger'];
@@ -202,12 +381,14 @@ function ActiveCard({
 }) {
   const [removalText, setRemovalText] = useState('');
   const [lapseOpen, setLapseOpen] = useState(false);
+  const [surfing, setSurfing] = useState(false);
 
   const current = Math.max(0, daysBetween(debuff.cleanSince, currentDate));
   const cumulative = debuff.totalCleanDays + current;
   const removals = debuff.cueRemovals;
   const removalsDone = removals.filter((r) => r.done).length;
   const removalPct = removals.length ? Math.round((removalsDone / removals.length) * 100) : 0;
+  const surfs = events.filter((e) => e.precededBy === 'urge' && !e.acted);
 
   const addRemoval = () => {
     const t = removalText.trim();
@@ -224,10 +405,12 @@ function ActiveCard({
   };
   const deleteRemoval = (id: string) => onUpdateDebuff(debuff.id, { cueRemovals: removals.filter((r) => r.id !== id) });
 
-  const logUrgeResisted = () => {
-    onAddTrigger({ debuffId: debuff.id, at: currentDate, place: '', mood: '', precededBy: 'urge', acted: false, intensity: 3 });
-    grantXp(50, 'Urge resisted');
-    showToast('You rode it out. +50 XP — urges peak and pass.');
+  const completeSurf = (before: 1 | 2 | 3 | 4 | 5, after: 1 | 2 | 3 | 4 | 5) => {
+    onAddTrigger({ debuffId: debuff.id, at: currentDate, place: '', mood: '', precededBy: 'urge', acted: false, intensity: before, intensityAfter: after });
+    setSurfing(false);
+    grantXp(50, 'Urge surfed');
+    const dropped = before - after;
+    showToast(dropped > 0 ? `You rode it out — it fell ${dropped} point${dropped > 1 ? 's' : ''}. +50 XP.` : 'You rode it out. +50 XP — urges peak and pass.');
   };
 
   const confirmLapse = () => {
@@ -291,16 +474,22 @@ function ActiveCard({
         </div>
       </div>
 
-      <div className="flex gap-2 mt-3">
-        <button type="button" onClick={logUrgeResisted}
-          className="flex-1 border border-emerald-500/30 hover:border-emerald-400/50 text-emerald-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded">
-          Urge — rode it out
-        </button>
-        <button type="button" onClick={() => setLapseOpen((o) => !o)}
-          className="flex-1 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded">
-          I lapsed
-        </button>
-      </div>
+      <DecayChart surfs={surfs} />
+
+      {surfing ? (
+        <UrgeSurfer onComplete={completeSurf} onCancel={() => setSurfing(false)} />
+      ) : (
+        <div className="flex gap-2 mt-3">
+          <button type="button" onClick={() => setSurfing(true)}
+            className="flex-1 border border-emerald-500/30 hover:border-emerald-400/50 text-emerald-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded flex items-center justify-center gap-1">
+            <Wind className="w-3 h-3" /> Urge now — surf it
+          </button>
+          <button type="button" onClick={() => setLapseOpen((o) => !o)}
+            className="flex-1 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded">
+            I lapsed
+          </button>
+        </div>
+      )}
 
       {lapseOpen && (
         <div className="mt-2 bg-[#0c0c1b]/70 border border-rose-500/25 rounded-lg p-3">
@@ -412,7 +601,7 @@ export default function DebuffPanel(props: DebuffPanelProps) {
                 <MappingCard debuff={d} events={events} currentDate={currentDate}
                   onUpdateDebuff={props.onUpdateDebuff} onAddTrigger={props.onAddTrigger} grantXp={props.grantXp} showToast={props.showToast} />
               ) : (
-                <ActiveCard debuff={d} currentDate={currentDate}
+                <ActiveCard debuff={d} events={events} currentDate={currentDate}
                   onUpdateDebuff={props.onUpdateDebuff} onAddTrigger={props.onAddTrigger} grantXp={props.grantXp} showToast={props.showToast} />
               )}
             </div>
