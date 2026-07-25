@@ -131,7 +131,7 @@ export interface LedgerEntry {
    * is a one-time environment change (not a quest completion). Legacy entries
    * with no kind are treated as 'full'.
    */
-  kind?: 'full' | 'minimum' | 'friction';
+  kind?: 'full' | 'minimum' | 'friction' | 'debuff';
 }
 
 /**
@@ -147,6 +147,52 @@ export interface FrictionItem {
   kind: 'reduce' | 'add';
 }
 
+// ---------------------------------------------------------
+// ADDICTION / DEBUFF ENGINE
+// A Debuff is a behavior you're removing (not a habit you're building). It
+// moves through mapping → active → maintenance. Its most sensitive data —
+// trigger logs and the lapse plan — can be kept on-device only.
+// ---------------------------------------------------------
+export interface CueRemoval {
+  id: string;
+  text: string;
+  done: boolean;
+}
+
+export interface Debuff {
+  id: string;
+  name: string;
+  stage: 'mapping' | 'active' | 'maintenance';
+  /** The need it serves — filled after mapping. (`function` is intentional per the spec.) */
+  function?: string;
+  /** What fills that need instead — required to leave mapping. */
+  replacement?: string;
+  cueRemovals: CueRemoval[];
+  mode: 'abstinence' | 'moderation';
+  /** ISO date the current clean streak began. */
+  cleanSince: string;
+  /** Cumulative clean days across all streaks — never resets on a lapse. */
+  totalCleanDays: number;
+  /** The user's own pre-committed lapse plan, written during mapping. */
+  lapsePlan: string;
+  /** True when the name matched a substance with dangerous withdrawal. */
+  needsMedicalNotice?: boolean;
+  createdAt: string;
+}
+
+export interface TriggerEvent {
+  id: string;
+  debuffId: string;
+  /** ISO date the event was logged. */
+  at: string;
+  place: string;
+  mood: string;
+  precededBy: string;
+  /** Did the urge win? */
+  acted: boolean;
+  intensity: 1 | 2 | 3 | 4 | 5;
+}
+
 /** Shape used by the local JSON export/import. */
 export interface SaveState {
   version: number;
@@ -156,4 +202,6 @@ export interface SaveState {
   ledger: LedgerEntry[];
   createdAt: string;
   frictionItems?: FrictionItem[];
+  debuffs?: Debuff[];
+  triggerEvents?: TriggerEvent[];
 }
