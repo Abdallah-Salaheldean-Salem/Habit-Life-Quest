@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind } from 'lucide-react';
 import { Debuff, TriggerEvent, CueRemoval } from '../types';
 import { daysBetween } from '../utils/logic';
+import { uid } from '../utils/id';
 import { needsMedicalNotice, containsDistress, CRISIS_RESOURCES } from '../utils/safety';
 
 interface DebuffPanelProps {
@@ -393,7 +394,7 @@ function ActiveCard({
   const addRemoval = () => {
     const t = removalText.trim();
     if (!t) return;
-    const item: CueRemoval = { id: `cr_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, text: t, done: false };
+    const item: CueRemoval = { id: uid('cr'), text: t, done: false };
     onUpdateDebuff(debuff.id, { cueRemovals: [...removals, item] });
     setRemovalText('');
   };
