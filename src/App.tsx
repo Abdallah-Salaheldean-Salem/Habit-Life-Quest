@@ -78,7 +78,7 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 // Minimum (never-zero) completions earn a fraction of the full XP.
 const MIN_XP_FACTOR = 0.4;
@@ -145,6 +145,10 @@ export default function App() {
   const [debuffs, setDebuffs] = useState<Debuff[]>([]);
   const [triggerEvents, setTriggerEvents] = useState<TriggerEvent[]>([]);
   const [traitGoals, setTraitGoals] = useState<TraitGoal[]>([]);
+  // Soft-delete tombstones so a sync can't resurrect a record deleted here.
+  const [deletedIds, setDeletedIds] = useState<string[]>([]);
+  // Real users track the real date; the demo mockup keeps its frozen clock.
+  const [liveClock, setLiveClock] = useState<boolean>(false);
   // The debuff module's data is the most sensitive in the app — kept on this
   // device by default, and only synced if the user turns it on.
   const [debuffLocalOnly, setDebuffLocalOnly] = useState<boolean>(true);
@@ -316,6 +320,14 @@ export default function App() {
     // v7 -> v8: trait / personality engine.
     if (updated.version < 8) {
       updated.traitGoals = updated.traitGoals || [];
+      updated.version = 8;
+    }
+
+    // v8 -> v9: delete tombstones + a real (non-mock) clock for real users.
+    if (updated.version < 9) {
+      updated.deletedIds = updated.deletedIds || [];
+      // Anyone with a character already created moves to the live clock.
+      updated.liveClock = updated.liveClock ?? Boolean(updated.hasCreatedCharacter);
       updated.version = SCHEMA_VERSION;
     }
 
@@ -339,6 +351,8 @@ export default function App() {
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           traitGoals,
+          deletedIds,
+          liveClock,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -358,6 +372,8 @@ export default function App() {
               debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
               triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
+              deletedIds: migrated.deletedIds || [],
+              liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -375,11 +391,16 @@ export default function App() {
         setLedger(merged.ledger);
         setFrictionItems(merged.frictionItems || []);
         setTraitGoals(merged.traitGoals || []);
+        setDeletedIds(merged.deletedIds || []);
+        const mergedLive = merged.liveClock ?? Boolean(merged.hasCreatedCharacter);
+        setLiveClock(mergedLive);
         if (!debuffLocalOnly) {
           setDebuffs(merged.debuffs || []);
           setTriggerEvents(merged.triggerEvents || []);
         }
-        if (merged.currentMockDate) {
+        if (mergedLive) {
+          setCurrentMockDate(toDateStr(new Date()));
+        } else if (merged.currentMockDate) {
           setCurrentMockDate(merged.currentMockDate);
         }
         setHasCreatedCharacter(true);
@@ -400,6 +421,8 @@ export default function App() {
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           traitGoals,
+          deletedIds,
+          liveClock,
           currentMockDate,
           hasCreatedCharacter: true
         };
@@ -419,6 +442,8 @@ export default function App() {
               debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
               triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
+              deletedIds: migrated.deletedIds || [],
+              liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
               currentMockDate: migrated.currentMockDate,
               hasCreatedCharacter: true
             };
@@ -462,8 +487,14 @@ export default function App() {
         setDebuffs(migrated.debuffs || []);
         setTriggerEvents(migrated.triggerEvents || []);
         setTraitGoals(migrated.traitGoals || []);
+        setDeletedIds(migrated.deletedIds || []);
+        const isLive = migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter);
+        setLiveClock(isLive);
         if (migrated.debuffLocalOnly !== undefined) setDebuffLocalOnly(migrated.debuffLocalOnly);
-        if (migrated.currentMockDate) {
+        // A live-clock user's "today" is the real today, not the stored date.
+        if (isLive) {
+          setCurrentMockDate(toDateStr(new Date()));
+        } else if (migrated.currentMockDate) {
           setCurrentMockDate(migrated.currentMockDate);
         }
         if (migrated.hasCreatedCharacter !== undefined) {
@@ -518,6 +549,8 @@ export default function App() {
         debuffs,
         triggerEvents,
         traitGoals,
+        deletedIds,
+        liveClock,
         debuffLocalOnly,
         currentMockDate,
         hasCreatedCharacter,
@@ -525,7 +558,7 @@ export default function App() {
       };
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in)
   useEffect(() => {
@@ -542,6 +575,8 @@ export default function App() {
           debuffs: debuffLocalOnly ? [] : debuffs,
           triggerEvents: debuffLocalOnly ? [] : triggerEvents,
           traitGoals,
+          deletedIds,
+          liveClock,
           currentMockDate,
           hasCreatedCharacter
         };
@@ -552,7 +587,7 @@ export default function App() {
     if (quests.length > 0 || ledger.length > 0) {
       triggerPush();
     }
-  }, [userName, userClass, quests, ledger, frictionItems, currentMockDate, hasCreatedCharacter]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
 
 
   const handleHardReset = () => {
@@ -565,6 +600,9 @@ export default function App() {
     setDebuffs([]);
     setTriggerEvents([]);
     setHasCreatedCharacter(false);
+    setTraitGoals([]);
+    setDeletedIds([]);
+    setLiveClock(false);
     setCurrentMockDate(toDateStr(new Date()));
     showToast('Save Data Wiped. Beginning anew.');
   };
@@ -578,6 +616,10 @@ export default function App() {
     setFrictionItems(mock.frictionItems || []);
     setDebuffs([]);
     setTriggerEvents([]);
+    setTraitGoals([]);
+    setDeletedIds([]);
+    // The demo's seeded history is anchored to a fixed date — freeze the clock.
+    setLiveClock(false);
     setCurrentMockDate('2026-07-18');
     showToast('Loaded Original Mockup State!');
   };
@@ -763,6 +805,7 @@ export default function App() {
   const deleteFriction = (id: string) => {
     setFrictionItems(frictionItems.filter((f) => f.id !== id));
     setLedger(ledger.filter((e) => e.id !== `friction_${id}`));
+    setDeletedIds((prev) => [...prev, id, `friction_${id}`]);
   };
 
   const toggleFrictionExpand = (questId: string) => {
@@ -814,8 +857,10 @@ export default function App() {
   };
 
   const handleDeleteDebuff = (id: string) => {
+    const orphanedTriggers = triggerEvents.filter((t) => t.debuffId === id).map((t) => t.id);
     setDebuffs((prev) => prev.filter((d) => d.id !== id));
     setTriggerEvents((prev) => prev.filter((t) => t.debuffId !== id));
+    setDeletedIds((prev) => [...prev, id, ...orphanedTriggers]);
   };
 
   const handleAddTrigger = (t: Omit<TriggerEvent, 'id'>) => {
@@ -862,6 +907,7 @@ export default function App() {
 
   const handleDeleteTraitGoal = (id: string) => {
     setTraitGoals((prev) => prev.filter((g) => g.id !== id));
+    setDeletedIds((prev) => [...prev, id]);
   };
 
   const handleAddTraitCheckin = (goalId: string, score: 1 | 2 | 3 | 4 | 5) => {
@@ -1351,6 +1397,9 @@ export default function App() {
     setUserName(name);
     setUserClass(creationClass);
     setHasCreatedCharacter(true);
+    // A real character runs on the real calendar, not the demo's frozen date.
+    setLiveClock(true);
+    setCurrentMockDate(toDateStr(new Date()));
     showToast(`Welcome, ${name} the ${CLASSES[creationClass].name}! Your quest begins.`);
   };
 

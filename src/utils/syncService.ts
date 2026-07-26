@@ -14,6 +14,8 @@ export interface SaveStateData {
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
   traitGoals?: TraitGoal[];
+  deletedIds?: string[];
+  liveClock?: boolean;
 }
 
 /**
@@ -167,6 +169,16 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
   if (Array.isArray(remote.traitGoals)) remote.traitGoals.forEach((g) => g && g.id && traitMap.set(g.id, g));
   const mergedTraitGoals = Array.from(traitMap.values());
 
+  // 2e. Tombstones — a record deleted on any device stays deleted. Union the
+  // ids, then strip them from every union'd array so a stale copy on the other
+  // side can't resurrect it. (Ledger is filtered too: friction XP entries are
+  // removed alongside their friction item.)
+  const deletedSet = new Set<string>([
+    ...(Array.isArray(local.deletedIds) ? local.deletedIds : []),
+    ...(Array.isArray(remote.deletedIds) ? remote.deletedIds : []),
+  ]);
+  const notDeleted = <T extends { id: string }>(arr: T[]) => arr.filter((x) => !deletedSet.has(x.id));
+
   // 3. Profiles and date
   // Prefer remote details unless they are defaults or empty
   const isLocalDefault = local.userName === 'Abdallah' || !local.userName;
@@ -182,11 +194,13 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     userName: mergedUserName || 'Abdallah',
     userClass: mergedUserClass || 'scholar',
     quests: mergedQuests,
-    ledger: mergedLedger,
-    frictionItems: mergedFrictionItems,
-    debuffs: mergedDebuffs,
-    triggerEvents: mergedTriggerEvents,
-    traitGoals: mergedTraitGoals,
+    ledger: notDeleted(mergedLedger),
+    frictionItems: notDeleted(mergedFrictionItems),
+    debuffs: notDeleted(mergedDebuffs),
+    triggerEvents: notDeleted(mergedTriggerEvents),
+    traitGoals: notDeleted(mergedTraitGoals),
+    deletedIds: Array.from(deletedSet),
+    liveClock: Boolean(local.liveClock || remote.liveClock),
     currentMockDate: mergedCurrentMockDate,
     hasCreatedCharacter: mergedHasCreatedCharacter,
   };
