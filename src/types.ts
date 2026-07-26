@@ -280,4 +280,8 @@ export interface SaveState {
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
   traitGoals?: TraitGoal[];
+  /** Soft-delete tombstones: ids removed on this device so a sync can't resurrect them. */
+  deletedIds?: string[];
+  /** True once a real character exists — "today" tracks the real date instead of the demo's frozen clock. */
+  liveClock?: boolean;
 }
