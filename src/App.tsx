@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { motion } from 'motion/react';
 import {
   Sparkles,
@@ -46,12 +46,15 @@ import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
-import AddQuestModal from './components/AddQuestModal';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import DebuffPanel from './components/DebuffPanel';
 import TraitPanel from './components/TraitPanel';
-import MasteryCelebration from './components/MasteryCelebration';
 import { ACHIEVEMENTS } from './utils/achievements';
+
+// Split out of the initial bundle — a modal and a one-off overlay that only
+// mount on demand, so their code (and confetti) loads when first needed.
+const AddQuestModal = lazy(() => import('./components/AddQuestModal'));
+const MasteryCelebration = lazy(() => import('./components/MasteryCelebration'));
 
 // Real-world Supabase Sync client and service
 import { supabase } from './utils/supabase';
@@ -1775,11 +1778,13 @@ export default function App() {
 
       {/* Mastery celebration overlay */}
       {mastery && (
-        <MasteryCelebration
-          title={mastery.title}
-          subtitle={mastery.subtitle}
-          onDone={() => setMastery(null)}
-        />
+        <Suspense fallback={null}>
+          <MasteryCelebration
+            title={mastery.title}
+            subtitle={mastery.subtitle}
+            onDone={() => setMastery(null)}
+          />
+        </Suspense>
       )}
 
       {/* HEADER BAR */}
@@ -2756,13 +2761,17 @@ export default function App() {
         <p className="mt-1 text-[8px] text-slate-700">Habit Quest © 2026 · Local-First RPG Ledger System</p>
       </footer>
 
-      {/* ADD QUEST OVERLAY MODAL */}
-      <AddQuestModal
-        isOpen={isAddQuestOpen}
-        onClose={() => setIsAddQuestOpen(false)}
-        onAdd={handleAddQuest}
-        userClass={userClass}
-      />
+      {/* ADD QUEST OVERLAY MODAL — mounted only while open so its chunk is lazy */}
+      {isAddQuestOpen && (
+        <Suspense fallback={null}>
+          <AddQuestModal
+            isOpen={true}
+            onClose={() => setIsAddQuestOpen(false)}
+            onAdd={handleAddQuest}
+            userClass={userClass}
+          />
+        </Suspense>
+      )}
 
       {/* EDIT CHARACTER OVERLAY MODAL */}
       {isEditingCharacter && (
