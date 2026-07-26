@@ -56,6 +56,7 @@ import { ACHIEVEMENTS } from './utils/achievements';
 // Real-world Supabase Sync client and service
 import { supabase } from './utils/supabase';
 import { requestOtp, verifyOtp, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
+import { migrate, SCHEMA_VERSION } from './utils/migrate';
 
 import {
   toDateStr,
@@ -78,7 +79,6 @@ import {
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
-const SCHEMA_VERSION = 9;
 
 // Minimum (never-zero) completions earn a fraction of the full XP.
 const MIN_XP_FACTOR = 0.4;
@@ -263,76 +263,6 @@ export default function App() {
     }
   }, [theme]);
 
-
-  // Migration logic covering hypothetical v1->v4 schemas
-  function migrate(save: any) {
-    const updated = { ...save };
-    if (!updated.version) updated.version = 1;
-    
-    // v1 -> v2: Added active flag to quests
-    if (updated.version < 2) {
-      if (updated.quests) {
-        updated.quests = updated.quests.map((q: any) => ({
-          ...q,
-          active: q.active !== undefined ? q.active : true
-        }));
-      }
-    }
-    
-    // v2 -> v3: Added target parameter for weekly quests
-    if (updated.version < 3) {
-      if (updated.quests) {
-        updated.quests = updated.quests.map((q: any) => ({
-          ...q,
-          target: q.target || (q.type === 'weekly' ? 2 : 1)
-        }));
-      }
-    }
-
-    // v3 -> v4: Added currentMockDate configuration for robust testing
-    if (updated.version < 4) {
-      updated.currentMockDate = updated.currentMockDate || '2026-07-18';
-      updated.version = 4;
-    }
-
-    // v4 -> v5: Implementation intentions on quests + never-zero completion
-    // kind on ledger entries. Existing entries are full completions.
-    if (updated.version < 5) {
-      if (Array.isArray(updated.ledger)) {
-        updated.ledger = updated.ledger.map((e: any) => ({ ...e, kind: e.kind || 'full' }));
-      }
-      updated.version = 5;
-    }
-
-    // v5 -> v6: friction ledger (per-quest environment changes).
-    if (updated.version < 6) {
-      updated.frictionItems = updated.frictionItems || [];
-      updated.version = 6;
-    }
-
-    // v6 -> v7: debuff engine (addiction interruption).
-    if (updated.version < 7) {
-      updated.debuffs = updated.debuffs || [];
-      updated.triggerEvents = updated.triggerEvents || [];
-      updated.version = 7;
-    }
-
-    // v7 -> v8: trait / personality engine.
-    if (updated.version < 8) {
-      updated.traitGoals = updated.traitGoals || [];
-      updated.version = 8;
-    }
-
-    // v8 -> v9: delete tombstones + a real (non-mock) clock for real users.
-    if (updated.version < 9) {
-      updated.deletedIds = updated.deletedIds || [];
-      // Anyone with a character already created moves to the live clock.
-      updated.liveClock = updated.liveClock ?? Boolean(updated.hasCreatedCharacter);
-      updated.version = SCHEMA_VERSION;
-    }
-
-    return updated;
-  }
 
   // Helper to pull remote save state, merge with local state, and push back
   const handleInitialMerge = async (userId: string, email: string) => {
