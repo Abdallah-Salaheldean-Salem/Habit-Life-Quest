@@ -59,8 +59,9 @@ const MasteryCelebration = lazy(() => import('./components/MasteryCelebration'))
 // Real-world Supabase Sync client and service
 import { supabase } from './utils/supabase';
 import { requestOtp, verifyOtp, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
-import { migrate, SCHEMA_VERSION } from './utils/migrate';
+import { migrate } from './utils/migrate';
 import { uid } from './utils/id';
+import { buildLocalSave, buildCloudSave } from './utils/saveState';
 
 import {
   toDateStr,
@@ -275,42 +276,31 @@ export default function App() {
     try {
       const res = await pullSave(userId);
       if (res.success && res.saveState) {
-        let localState: SaveStateData = {
-          version: SCHEMA_VERSION,
-          userName,
-          userClass,
-          quests,
-          ledger,
-          frictionItems,
-          debuffs: debuffLocalOnly ? [] : debuffs,
-          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
-          traitGoals,
-          deletedIds,
-          liveClock,
-          currentMockDate,
-          hasCreatedCharacter: true
-        };
+        let localState: SaveStateData = buildCloudSave({
+          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
+        });
         
         const saved = localStorage.getItem(SAVE_KEY);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
             const migrated = migrate(parsed);
-            localState = {
-              version: SCHEMA_VERSION,
+            localState = buildCloudSave({
               userName: migrated.userName,
               userClass: migrated.userClass,
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
-              debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
-              triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
+              debuffs: migrated.debuffs || [],
+              triggerEvents: migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
               deletedIds: migrated.deletedIds || [],
               liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
+              debuffLocalOnly,
               currentMockDate: migrated.currentMockDate,
-              hasCreatedCharacter: true
-            };
+              hasCreatedCharacter: true,
+            });
           } catch (e) {
             console.error('Error parsing local storage before merge:', e);
           }
@@ -345,42 +335,31 @@ export default function App() {
         showToast('Save merged with cloud storage!');
       } else if (res.success) {
         // No remote save exists, push current local state to cloud
-        let localState: SaveStateData = {
-          version: SCHEMA_VERSION,
-          userName,
-          userClass,
-          quests,
-          ledger,
-          frictionItems,
-          debuffs: debuffLocalOnly ? [] : debuffs,
-          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
-          traitGoals,
-          deletedIds,
-          liveClock,
-          currentMockDate,
-          hasCreatedCharacter: true
-        };
+        let localState: SaveStateData = buildCloudSave({
+          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
+        });
         
         const saved = localStorage.getItem(SAVE_KEY);
         if (saved) {
           try {
             const parsed = JSON.parse(saved);
             const migrated = migrate(parsed);
-            localState = {
-              version: SCHEMA_VERSION,
+            localState = buildCloudSave({
               userName: migrated.userName,
               userClass: migrated.userClass,
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
-              debuffs: debuffLocalOnly ? [] : migrated.debuffs || [],
-              triggerEvents: debuffLocalOnly ? [] : migrated.triggerEvents || [],
+              debuffs: migrated.debuffs || [],
+              triggerEvents: migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
               deletedIds: migrated.deletedIds || [],
               liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
+              debuffLocalOnly,
               currentMockDate: migrated.currentMockDate,
-              hasCreatedCharacter: true
-            };
+              hasCreatedCharacter: true,
+            });
           } catch (e) {
             console.error('Error parsing local storage before push:', e);
           }
@@ -473,23 +452,10 @@ export default function App() {
   // Save changes to localStorage whenever core state updates
   useEffect(() => {
     if (quests.length > 0 || ledger.length > 0) {
-      const stateToSave = {
-        version: SCHEMA_VERSION,
-        userName,
-        userClass,
-        quests,
-        ledger,
-        frictionItems,
-        debuffs,
-        triggerEvents,
-        traitGoals,
-        deletedIds,
-        liveClock,
-        debuffLocalOnly,
-        currentMockDate,
-        hasCreatedCharacter,
-        syncEmail
-      };
+      const stateToSave = buildLocalSave({
+        userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+        traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
+      });
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
   }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
@@ -502,21 +468,10 @@ export default function App() {
     const triggerPush = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const stateToSave: SaveStateData = {
-          version: SCHEMA_VERSION,
-          userName,
-          userClass,
-          quests,
-          ledger,
-          frictionItems,
-          debuffs: debuffLocalOnly ? [] : debuffs,
-          triggerEvents: debuffLocalOnly ? [] : triggerEvents,
-          traitGoals,
-          deletedIds,
-          liveClock,
-          currentMockDate,
-          hasCreatedCharacter
-        };
+        const stateToSave = buildCloudSave({
+          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter,
+        });
         await pushSave(session.user.id, session.user.email || '', stateToSave);
       }
     };
@@ -1354,23 +1309,24 @@ export default function App() {
     // fire on an empty board, so without this the mockup would reload.
     localStorage.setItem(
       SAVE_KEY,
-      JSON.stringify({
-        version: SCHEMA_VERSION,
-        userName: name,
-        userClass: creationClass,
-        quests: [],
-        ledger: [],
-        frictionItems: [],
-        debuffs: [],
-        triggerEvents: [],
-        traitGoals: [],
-        deletedIds: [],
-        liveClock: true,
-        debuffLocalOnly,
-        currentMockDate: today,
-        hasCreatedCharacter: true,
-        syncEmail,
-      }),
+      JSON.stringify(
+        buildLocalSave({
+          userName: name,
+          userClass: creationClass,
+          quests: [],
+          ledger: [],
+          frictionItems: [],
+          debuffs: [],
+          triggerEvents: [],
+          traitGoals: [],
+          deletedIds: [],
+          liveClock: true,
+          debuffLocalOnly,
+          currentMockDate: today,
+          hasCreatedCharacter: true,
+          syncEmail,
+        }),
+      ),
     );
     showToast(`Welcome, ${name} the ${CLASSES[creationClass].name}! Your quest begins.`);
   };
