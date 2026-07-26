@@ -1331,12 +1331,44 @@ export default function App() {
       return;
     }
     
+    const today = toDateStr(new Date());
     setUserName(name);
     setUserClass(creationClass);
     setHasCreatedCharacter(true);
     // A real character runs on the real calendar, not the demo's frozen date.
     setLiveClock(true);
-    setCurrentMockDate(toDateStr(new Date()));
+    setCurrentMockDate(today);
+    // Start from a clean slate — the fresh-load path seeds a demo mockup, and a
+    // brand-new hero shouldn't inherit that character's quests or history.
+    setQuests([]);
+    setLedger([]);
+    setFrictionItems([]);
+    setDebuffs([]);
+    setTriggerEvents([]);
+    setTraitGoals([]);
+    setDeletedIds([]);
+    // Persist the clean slate immediately: the length-guarded autosave won't
+    // fire on an empty board, so without this the mockup would reload.
+    localStorage.setItem(
+      SAVE_KEY,
+      JSON.stringify({
+        version: SCHEMA_VERSION,
+        userName: name,
+        userClass: creationClass,
+        quests: [],
+        ledger: [],
+        frictionItems: [],
+        debuffs: [],
+        triggerEvents: [],
+        traitGoals: [],
+        deletedIds: [],
+        liveClock: true,
+        debuffLocalOnly,
+        currentMockDate: today,
+        hasCreatedCharacter: true,
+        syncEmail,
+      }),
+    );
     showToast(`Welcome, ${name} the ${CLASSES[creationClass].name}! Your quest begins.`);
   };
 
