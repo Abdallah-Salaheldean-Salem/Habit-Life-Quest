@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Swords, Lock, Check } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, Swords, Lock, Check, Sunrise } from 'lucide-react';
 import { StatType, STATS, QuestDifficulty, QuestType, QuestDraft } from '../types';
 
 const TIER_LABEL: Record<number, string> = { 1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V', 6: '★' };
@@ -279,6 +279,129 @@ function BranchColumn({
 }
 
 // ---------------------------------------------------------
+// MINIMUM VIABLE DAY — the daily-rhythm loadout.
+// Six binary daily pillars, each with an implementation intention and a
+// never-zero minimum. Defeats the illusion of perfection: a 15-minute
+// imperfect task is a successful iteration; a 0-minute perfect one is a
+// failed sprint. Loaded as ordinary daily quests (not tree nodes).
+// ---------------------------------------------------------
+const MVD_QUESTS: QuestDraft[] = [
+  {
+    title: 'Worship on time',
+    stat: 'spirit', difficulty: 'normal', type: 'daily', target: 1, tier: 1,
+    description:
+      "The Baseline — the day's anchor. Five prayers on time, morning & evening adhkar, and the sunan (2 rak'ah Fajr, Duha, Witr). Non-negotiable slots that hold the timeline together.",
+    intention: { cue: 'at each salah time', location: 'home · lab · masjid', minVersion: 'the five fard prayers, on time' },
+  },
+  {
+    title: 'Learn 15 minutes',
+    stat: 'mind', difficulty: 'easy', type: 'daily', target: 1, tier: 1,
+    description:
+      'The Delta — two micro-sprints on a hard timer: one deen (a Tafsir excerpt or short reflection) and one technical (an article, a doc update, an OpenCV or state-space tutorial). When the timer rings it is done, however far you got.',
+    intention: { cue: 'after Dhuhr / on the commute', location: 'desk · phone', minVersion: 'one paragraph of each' },
+  },
+  {
+    title: 'Move 15 minutes',
+    stat: 'body', difficulty: 'easy', type: 'daily', target: 1, tier: 1,
+    description:
+      'System Maintenance — counter the desk-and-lab day: a workout, a fast walk, or targeted mobility. Fifteen minutes with an elevated heart rate is a successful increment.',
+    intention: { cue: 'before the evening wind-down', location: 'outside · gym · living room', minVersion: 'a brisk 15-minute walk' },
+  },
+  {
+    title: 'One real conversation',
+    stat: 'spirit', difficulty: 'easy', type: 'daily', target: 1, tier: 1,
+    description:
+      'Stakeholder Engagement — intentional, offline, face-to-face: a non-work chat with family, or coffee with a colleague about anything but the lab. Voice notes and texts do not count.',
+    intention: { cue: 'over a meal or a coffee break', location: 'off-screen, in person', minVersion: 'one 5-minute in-person talk' },
+  },
+  {
+    title: 'Guilt-free recharge',
+    stat: 'hobby', difficulty: 'easy', type: 'daily', target: 1, tier: 1,
+    description:
+      'System Cooldown (الترويح) — scheduled decompression, not wasted time: a disconnected hobby, an episode, real rest. It keeps tomorrow’s velocity high.',
+    intention: { cue: 'once the day’s minimums are done', location: 'couch · away from the work desk', minVersion: '15 minutes fully off-duty' },
+  },
+  {
+    title: 'Stand-up + retrospective',
+    stat: 'career', difficulty: 'easy', type: 'daily', target: 1, tier: 1,
+    description:
+      'The daily review — 2 minutes each. Morning: name the minimum to move every pillar to Done. Evening: did you add one new thing? If a pillar failed, name the blocker and shrink tomorrow’s scope. It is how no two days stay equal.',
+    intention: { cue: 'first thing, and last thing', location: 'your board / notebook', minVersion: 'a 30-second morning glance + evening tally' },
+  },
+];
+
+function MvdLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], label: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="mb-6 border border-[#d4af37]/20 rounded-lg bg-[#1a1a2e]/40">
+      <div className="flex items-center justify-between gap-2 p-3">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex items-center gap-2 text-left cursor-pointer group min-w-0"
+        >
+          {open ? (
+            <ChevronDown className="w-4 h-4 text-[#d4af37] shrink-0" />
+          ) : (
+            <ChevronRight className="w-4 h-4 text-[#d4af37] shrink-0" />
+          )}
+          <Sunrise className="w-4 h-4 text-[#d4af37] shrink-0" />
+          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-widest shrink-0">
+            Minimum Viable Day
+          </span>
+          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden sm:inline">
+            6 daily pillars · never zero
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onLoadSeason(MVD_QUESTS, 'Minimum Viable Day')}
+          className="shrink-0 bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all"
+        >
+          Load the day
+        </button>
+      </div>
+
+      {open && (
+        <div className="p-3 pt-0 space-y-2.5">
+          <p className="font-mono text-[9px] text-slate-500 leading-relaxed">
+            A 15-minute imperfect task is a successful iteration; a 0-minute perfect one is a failed sprint. These six
+            load as daily quests — each carries a cue and a never-zero minimum you can log on a hard day.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {MVD_QUESTS.map((q) => {
+              const color = STATS[q.stat].color;
+              return (
+                <div
+                  key={q.title}
+                  className="bg-[#15152a] border border-white/5 rounded-lg p-2.5"
+                  style={{ borderLeftColor: color, borderLeftWidth: 3 }}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[11px] leading-tight" style={{ color }}>
+                      {q.title}
+                    </span>
+                    <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wide shrink-0">
+                      {STATS[q.stat].name}
+                    </span>
+                  </div>
+                  <p className="font-mono text-[9px] text-slate-500 mt-1 leading-snug break-words">
+                    <span className="text-slate-400">Cue:</span> {q.intention?.cue}
+                  </p>
+                  <p className="font-mono text-[9px] text-emerald-400/80 mt-0.5 leading-snug break-words">
+                    <span className="text-slate-400">Never-zero:</span> {q.intention?.minVersion}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // SEASON LOADOUT — the v2 24-month schedule (Part 7).
 // Three active nodes per season; each references exact node titles.
 // ---------------------------------------------------------
@@ -606,7 +729,10 @@ export default function TaskSkillTree({
 }) {
   return (
     <div>
-      {/* Season loadout — the actual schedule */}
+      {/* Minimum Viable Day — the daily-rhythm loadout */}
+      <MvdLoadout onLoadSeason={onLoadSeason} />
+
+      {/* Season loadout — the 24-month schedule */}
       <SeasonLoadout onLoadSeason={onLoadSeason} />
 
       {/* Rules hint */}
