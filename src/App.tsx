@@ -57,6 +57,7 @@ import { ACHIEVEMENTS } from './utils/achievements';
 import { supabase } from './utils/supabase';
 import { requestOtp, verifyOtp, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
 import { migrate, SCHEMA_VERSION } from './utils/migrate';
+import { uid } from './utils/id';
 
 import {
   toDateStr,
@@ -490,7 +491,10 @@ export default function App() {
     }
   }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
-  // Automatic background push to Supabase on state change (if signed in)
+  // Automatic background push to Supabase on state change (if signed in).
+  // Debounced: a burst of edits (toggling several quests, typing) collapses
+  // into a single trailing write instead of one full-blob upsert per change.
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     const triggerPush = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -515,8 +519,12 @@ export default function App() {
     };
 
     if (quests.length > 0 || ledger.length > 0) {
-      triggerPush();
+      if (pushTimer.current) clearTimeout(pushTimer.current);
+      pushTimer.current = setTimeout(triggerPush, 1200);
     }
+    return () => {
+      if (pushTimer.current) clearTimeout(pushTimer.current);
+    };
   }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
 
 
@@ -699,7 +707,7 @@ export default function App() {
     const t = text.trim();
     if (!t) return;
     const item: FrictionItem = {
-      id: `fr_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      id: uid('fr'),
       questId,
       text: t,
       done: false,
@@ -752,7 +760,7 @@ export default function App() {
   // ---------------------------------------------------------
   const grantDebuffXp = (amount: number, note: string) => {
     const entry: LedgerEntry = {
-      id: `debuff_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      id: uid('debuff'),
       date: currentMockDate,
       questId: 'debuff_xp',
       questTitle: note,
@@ -767,7 +775,7 @@ export default function App() {
 
   const handleAddDebuff = (name: string, lapsePlan: string, needsMedical: boolean) => {
     const d: Debuff = {
-      id: `db_${Date.now()}`,
+      id: uid('db'),
       name,
       stage: 'mapping',
       cueRemovals: [],
@@ -794,7 +802,7 @@ export default function App() {
   };
 
   const handleAddTrigger = (t: Omit<TriggerEvent, 'id'>) => {
-    const ev: TriggerEvent = { ...t, id: `te_${Date.now()}_${Math.random().toString(36).slice(2, 5)}` };
+    const ev: TriggerEvent = { ...t, id: uid('te') };
     setTriggerEvents((prev) => [...prev, ev]);
   };
 
@@ -803,7 +811,7 @@ export default function App() {
   // ---------------------------------------------------------
   const grantTraitXp = (amount: number, note: string) => {
     const entry: LedgerEntry = {
-      id: `trait_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`,
+      id: uid('trait'),
       date: currentMockDate,
       questId: 'trait_xp',
       questTitle: note,
@@ -818,7 +826,7 @@ export default function App() {
 
   const handleAddTraitGoal = (trait: TraitId, facet: string, role: string, questIds: string[]) => {
     const g: TraitGoal = {
-      id: `tg_${Date.now()}`,
+      id: uid('tg'),
       trait,
       facet,
       role,
@@ -841,7 +849,7 @@ export default function App() {
   };
 
   const handleAddTraitCheckin = (goalId: string, score: 1 | 2 | 3 | 4 | 5) => {
-    const c: TraitCheckin = { id: `tc_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`, at: currentMockDate, score };
+    const c: TraitCheckin = { id: uid('tc'), at: currentMockDate, score };
     setTraitGoals((prev) => prev.map((g) => (g.id === goalId ? { ...g, checkins: [...g.checkins, c] } : g)));
     grantTraitXp(40, 'Six-week trait check-in');
     showToast('Check-in logged. Slow change is still change. +40 XP.');
@@ -1112,7 +1120,7 @@ export default function App() {
         // Complete it today!
         const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
         const newEntry: LedgerEntry = {
-          id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          id: uid('log'),
           date: currentMockDate,
           questId: q.id,
           questTitle: q.title,
@@ -1141,7 +1149,7 @@ export default function App() {
       } else {
         const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
         const newEntry: LedgerEntry = {
-          id: `log_${Date.now()}`,
+          id: uid('log'),
           date: currentMockDate,
           questId: q.id,
           questTitle: q.title,
@@ -1164,7 +1172,7 @@ export default function App() {
       } else {
         const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
         const newEntry: LedgerEntry = {
-          id: `log_${Date.now()}`,
+          id: uid('log'),
           date: currentMockDate,
           questId: q.id,
           questTitle: q.title,
@@ -1192,7 +1200,7 @@ export default function App() {
     const fullXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
     const xp = Math.max(1, Math.round(fullXp * MIN_XP_FACTOR));
     const newEntry: LedgerEntry = {
-      id: `log_${Date.now()}_min`,
+      id: uid('log'),
       date: currentMockDate,
       questId: q.id,
       questTitle: q.title,
@@ -1224,7 +1232,7 @@ export default function App() {
     }
     const newQuest: Quest = {
       ...questData,
-      id: `quest_${Date.now()}`,
+      id: uid('quest'),
       createdAt: currentMockDate,
       active: true,
     };
@@ -1243,10 +1251,9 @@ export default function App() {
       showToast(`${label} is already on your board.`);
       return;
     }
-    const now = Date.now();
-    const newQuests: Quest[] = toAdd.map((d, i) => ({
+    const newQuests: Quest[] = toAdd.map((d) => ({
       ...d,
-      id: `quest_${now}_${i}`,
+      id: uid('quest'),
       createdAt: currentMockDate,
       active: true,
     }));
@@ -1380,7 +1387,7 @@ export default function App() {
   const handleAddFreeXp = (xp: number) => {
     // We add free XP by creating a historical dummy entry on today's date
     const dummyEntry: LedgerEntry = {
-      id: `free_${Date.now()}`,
+      id: uid('free'),
       date: currentMockDate,
       questId: 'free_xp_grant',
       questTitle: 'Astral XP Infusion',
