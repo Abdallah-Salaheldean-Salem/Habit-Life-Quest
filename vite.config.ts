@@ -6,6 +6,23 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
+    build: {
+      rollupOptions: {
+        output: {
+          // Split large, rarely-changing libraries into their own chunks so
+          // they cache across deploys and load in parallel with app code.
+          manualChunks(id: string) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('react-dom') || id.includes('/scheduler/')) return 'react';
+            if (id.includes('node_modules/react/')) return 'react';
+            if (id.includes('motion')) return 'motion';
+            if (id.includes('@supabase')) return 'supabase';
+            if (id.includes('lucide-react')) return 'lucide';
+            return undefined;
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
