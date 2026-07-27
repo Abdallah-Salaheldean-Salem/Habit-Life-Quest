@@ -4,11 +4,18 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind, ShieldCheck } from 'lucide-react';
 import { Debuff, TriggerEvent, CueRemoval } from '../types';
 import { daysBetween } from '../utils/logic';
 import { uid } from '../utils/id';
 import { needsMedicalNotice, containsDistress, CRISIS_RESOURCES } from '../utils/safety';
+
+// Points for resisting a single cue — lighter than a full urge-surf (+50),
+// which is the deeper, effortful version of the same win.
+const RESIST_XP = 20;
+
+/** A resisted cue is any logged trigger the user did NOT act on. */
+const isResisted = (t: TriggerEvent) => t.acted === false;
 
 interface DebuffPanelProps {
   debuffs: Debuff[];
@@ -422,6 +429,14 @@ function ActiveCard({
     showToast('Logged. One lapse doesn’t erase your progress.');
   };
 
+  // Quick win: a cue hit, you said no. One tap, points, no timer needed.
+  const resistedToday = events.filter((e) => isResisted(e) && e.at === currentDate).length;
+  const quickResist = () => {
+    onAddTrigger({ debuffId: debuff.id, at: currentDate, place: '', mood: '', precededBy: 'cue', acted: false, intensity: 3 });
+    grantXp(RESIST_XP, 'Cue resisted');
+    showToast(`Cue resisted. +${RESIST_XP} XP — that's the rep that rewires it.`);
+  };
+
   return (
     <div className="bg-[#1a1a2e] border border-white/5 rounded-lg p-3.5">
       <div className="flex items-start justify-between gap-2">
@@ -480,15 +495,25 @@ function ActiveCard({
       {surfing ? (
         <UrgeSurfer onComplete={completeSurf} onCancel={() => setSurfing(false)} />
       ) : (
-        <div className="flex gap-2 mt-3">
-          <button type="button" onClick={() => setSurfing(true)}
-            className="flex-1 border border-emerald-500/30 hover:border-emerald-400/50 text-emerald-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded flex items-center justify-center gap-1">
-            <Wind className="w-3 h-3" /> Urge now — surf it
+        <div className="mt-3 space-y-2">
+          <button type="button" onClick={quickResist}
+            className="w-full bg-emerald-500/10 border border-emerald-500/40 hover:bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold uppercase tracking-wider py-2 rounded flex items-center justify-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5" /> Resisted a cue
+            <span className="text-[8px] text-emerald-400/80">+{RESIST_XP}</span>
+            {resistedToday > 0 && (
+              <span className="ml-1 text-[8px] text-slate-400 normal-case tracking-normal">· {resistedToday} today</span>
+            )}
           </button>
-          <button type="button" onClick={() => setLapseOpen((o) => !o)}
-            className="flex-1 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded">
-            I lapsed
-          </button>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setSurfing(true)}
+              className="flex-1 border border-white/10 hover:border-emerald-400/50 text-slate-300 hover:text-emerald-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded flex items-center justify-center gap-1">
+              <Wind className="w-3 h-3" /> Strong urge — surf it
+            </button>
+            <button type="button" onClick={() => setLapseOpen((o) => !o)}
+              className="flex-1 border border-white/10 hover:border-rose-500/30 text-slate-400 hover:text-rose-400 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded">
+              I lapsed
+            </button>
+          </div>
         </div>
       )}
 
@@ -514,6 +539,8 @@ function ActiveCard({
 
 export default function DebuffPanel(props: DebuffPanelProps) {
   const { debuffs, triggerEvents, currentDate, localOnly, onToggleLocalOnly, onAddDebuff, onDeleteDebuff } = props;
+  const resistsToday = triggerEvents.filter((t) => isResisted(t) && t.at === currentDate).length;
+  const resistsTotal = triggerEvents.filter(isResisted).length;
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
   const [lapsePlan, setLapsePlan] = useState('');
@@ -561,6 +588,21 @@ export default function DebuffPanel(props: DebuffPanelProps) {
         </button>
       </div>
       {showCrisis && <CrisisBox />}
+
+      {/* Cues resisted — the daily scoreboard */}
+      {debuffs.length > 0 && (
+        <div className="flex items-center gap-2.5 mb-3 bg-[#0c0c1b]/60 border border-emerald-500/20 rounded-lg px-3 py-2">
+          <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <span className="font-mono text-xl font-bold text-emerald-400 tabular-nums">{resistsToday}</span>
+            <span className="font-mono text-[10px] text-slate-400"> cue{resistsToday === 1 ? '' : 's'} resisted today</span>
+          </div>
+          <div className="text-right shrink-0">
+            <span className="font-mono text-[11px] text-[#f3e5ab] tabular-nums">{resistsTotal}</span>
+            <span className="font-mono text-[8px] text-slate-600 uppercase tracking-wider"> all-time</span>
+          </div>
+        </div>
+      )}
 
       {addOpen && (
         <div className="bg-[#1a1a2e] border border-white/10 rounded-lg p-3 mb-3 space-y-2">
