@@ -4,9 +4,9 @@
  */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind, ShieldCheck } from 'lucide-react';
+import { Plus, Trash2, ShieldAlert, X, Lock, LifeBuoy, Wind, ShieldCheck, Flame } from 'lucide-react';
 import { Debuff, TriggerEvent, CueRemoval } from '../types';
-import { daysBetween } from '../utils/logic';
+import { daysBetween, getAppWideStreak } from '../utils/logic';
 import { uid } from '../utils/id';
 import { needsMedicalNotice, containsDistress, CRISIS_RESOURCES } from '../utils/safety';
 
@@ -541,6 +541,12 @@ export default function DebuffPanel(props: DebuffPanelProps) {
   const { debuffs, triggerEvents, currentDate, localOnly, onToggleLocalOnly, onAddDebuff, onDeleteDebuff } = props;
   const resistsToday = triggerEvents.filter((t) => isResisted(t) && t.at === currentDate).length;
   const resistsTotal = triggerEvents.filter(isResisted).length;
+  // Consecutive days (ending today, forgiving of a not-yet-acted today) with at
+  // least one cue resisted — reuses the app-wide streak rule.
+  const resistStreak = getAppWideStreak(
+    Array.from(new Set(triggerEvents.filter(isResisted).map((t) => t.at))),
+    currentDate,
+  );
   const [addOpen, setAddOpen] = useState(false);
   const [name, setName] = useState('');
   const [lapsePlan, setLapsePlan] = useState('');
@@ -597,6 +603,11 @@ export default function DebuffPanel(props: DebuffPanelProps) {
             <span className="font-mono text-xl font-bold text-emerald-400 tabular-nums">{resistsToday}</span>
             <span className="font-mono text-[10px] text-slate-400"> cue{resistsToday === 1 ? '' : 's'} resisted today</span>
           </div>
+          {resistStreak > 0 && (
+            <span className="flex items-center gap-0.5 font-mono text-[10px] text-[#d4af37] shrink-0" title={`${resistStreak}-day resist streak`}>
+              <Flame className="w-3 h-3" /> {resistStreak}d
+            </span>
+          )}
           <div className="text-right shrink-0">
             <span className="font-mono text-[11px] text-[#f3e5ab] tabular-nums">{resistsTotal}</span>
             <span className="font-mono text-[8px] text-slate-600 uppercase tracking-wider"> all-time</span>
