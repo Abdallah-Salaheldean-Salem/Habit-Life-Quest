@@ -15,6 +15,8 @@ export interface AchievementContext {
   debuffs: Debuff[];
   triggerEvents: TriggerEvent[];
   traitGoals: TraitGoal[];
+  /** Current consecutive-day streak of resisting at least one cue. */
+  resistStreak: number;
 }
 
 export interface Achievement {
@@ -163,5 +165,19 @@ export const ACHIEVEMENTS: Achievement[] = [
     title: 'Self-Author',
     description: 'Log three six-week trait check-ins — proof a personality can move.',
     check: (ctx) => ctx.traitGoals.reduce((n, g) => n + g.checkins.length, 0) >= 3,
+  },
+  {
+    id: 'unshaken',
+    numIcon: 'XIX',
+    title: 'Unshaken',
+    description: 'Reach a 7-day cue-resisting streak — the wave keeps breaking, you keep standing.',
+    check: (ctx) => ctx.resistStreak >= 7,
+  },
+  {
+    id: 'cue_breaker',
+    numIcon: 'XX',
+    title: 'Cue Breaker',
+    description: 'Resist 50 cues in all — each a rep that rewires the habit.',
+    check: (ctx) => ctx.triggerEvents.filter((t) => t.acted === false).length >= 50,
   },
 ];

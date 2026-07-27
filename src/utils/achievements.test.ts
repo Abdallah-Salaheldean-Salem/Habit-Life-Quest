@@ -19,6 +19,7 @@ const ctx = (over: Partial<AchievementContext> = {}): AchievementContext => ({
   debuffs: [],
   triggerEvents: [],
   traitGoals: [],
+  resistStreak: 0,
   ...over,
 });
 
@@ -58,5 +59,16 @@ describe('module achievements', () => {
   it('Becoming requires a trait bound to two habits', () => {
     expect(find('becoming').check(ctx({ traitGoals: [{ questIds: ['a'], checkins: [] } as any] }))).toBe(false);
     expect(find('becoming').check(ctx({ traitGoals: [{ questIds: ['a', 'b'], checkins: [] } as any] }))).toBe(true);
+  });
+
+  it('Unshaken requires a 7-day resist streak', () => {
+    expect(find('unshaken').check(ctx({ resistStreak: 6 }))).toBe(false);
+    expect(find('unshaken').check(ctx({ resistStreak: 7 }))).toBe(true);
+  });
+
+  it('Cue Breaker requires 50 resisted cues in total', () => {
+    const resists = (n: number) => Array.from({ length: n }, () => ({ acted: false } as any));
+    expect(find('cue_breaker').check(ctx({ triggerEvents: resists(49) }))).toBe(false);
+    expect(find('cue_breaker').check(ctx({ triggerEvents: resists(50) }))).toBe(true);
   });
 });
