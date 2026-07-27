@@ -5,8 +5,9 @@
 
 import React, { useState } from 'react';
 import { Plus, X, Sparkles, Check } from 'lucide-react';
-import { Quest, TraitGoal, TraitId, TraitCheckin, TRAITS } from '../types';
+import { Quest, QuestDraft, TraitGoal, TraitId, TraitCheckin, TRAITS, STATS } from '../types';
 import { daysBetween } from '../utils/logic';
+import { ROLE_QUESTS } from '../data/roleQuests';
 
 const CHECKIN_DAYS = 42; // six weeks — long enough for a real slope
 
@@ -18,6 +19,7 @@ interface TraitPanelProps {
   onUpdateGoal: (id: string, patch: Partial<TraitGoal>) => void;
   onDeleteGoal: (id: string) => void;
   onAddCheckin: (goalId: string, score: 1 | 2 | 3 | 4 | 5) => void;
+  onAddQuest: (draft: QuestDraft) => void;
   showToast: (msg: string) => void;
 }
 
@@ -53,16 +55,20 @@ function GoalCard({
   currentDate,
   onDeleteGoal,
   onAddCheckin,
+  onAddQuest,
 }: {
   goal: TraitGoal;
   quests: Quest[];
   currentDate: string;
   onDeleteGoal: TraitPanelProps['onDeleteGoal'];
   onAddCheckin: TraitPanelProps['onAddCheckin'];
+  onAddQuest: TraitPanelProps['onAddQuest'];
 }) {
   const [score, setScore] = useState<1 | 2 | 3 | 4 | 5>(3);
   const trait = TRAITS[goal.trait];
   const bound = quests.filter((q) => goal.questIds.includes(q.id));
+  const activeTitles = new Set(quests.filter((q) => q.active).map((q) => q.title));
+  const suggestions = ROLE_QUESTS[goal.facet] ?? [];
   const lastAt = goal.checkins.length ? goal.checkins[goal.checkins.length - 1].at : goal.createdAt;
   const sinceLast = Math.max(0, daysBetween(lastAt, currentDate));
   const due = sinceLast >= CHECKIN_DAYS;
@@ -94,6 +100,31 @@ function GoalCard({
           ))}
         </div>
       </div>
+
+      {/* Role quests — act-as-if habits that rehearse this facet */}
+      {suggestions.length > 0 && (
+        <div className="mt-2.5">
+          <p className="font-mono text-[9px] uppercase tracking-wider text-slate-500 mb-1">Rehearse it — role quests</p>
+          <div className="space-y-1">
+            {suggestions.map((d) => {
+              const onBoard = activeTitles.has(d.title);
+              return (
+                <div key={d.title} className="flex items-center gap-2 bg-[#0c0c1b]/50 border border-white/5 rounded px-2 py-1">
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: STATS[d.stat].color }} />
+                  <span className="flex-1 min-w-0 text-[11px] text-slate-300 truncate" title={d.description}>{d.title}</span>
+                  {onBoard ? (
+                    <span className="font-mono text-[8px] uppercase tracking-wider text-emerald-400 shrink-0">added</span>
+                  ) : (
+                    <button type="button" onClick={() => onAddQuest(d)} className="text-slate-500 hover:text-[#d4af37] shrink-0" title="Add as a quest">
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <SlopeChart checkins={goal.checkins} />
 
@@ -130,7 +161,7 @@ function GoalCard({
 }
 
 export default function TraitPanel(props: TraitPanelProps) {
-  const { traitGoals, quests, currentDate, onDeleteGoal, onAddCheckin } = props;
+  const { traitGoals, quests, currentDate, onDeleteGoal, onAddCheckin, onAddQuest } = props;
   const [addOpen, setAddOpen] = useState(false);
   const [trait, setTrait] = useState<TraitId>('conscientiousness');
   const [facet, setFacet] = useState<string>(TRAITS.conscientiousness.facets[0]);
@@ -246,7 +277,7 @@ export default function TraitPanel(props: TraitPanelProps) {
       <div className="space-y-3 mt-3">
         {traitGoals.map((g) => (
           <GoalCard key={g.id} goal={g} quests={quests} currentDate={currentDate}
-            onDeleteGoal={onDeleteGoal} onAddCheckin={onAddCheckin} />
+            onDeleteGoal={onDeleteGoal} onAddCheckin={onAddCheckin} onAddQuest={onAddQuest} />
         ))}
       </div>
     </div>

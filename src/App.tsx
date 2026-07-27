@@ -2274,6 +2274,7 @@ export default function App() {
               onUpdateGoal={handleUpdateTraitGoal}
               onDeleteGoal={handleDeleteTraitGoal}
               onAddCheckin={handleAddTraitCheckin}
+              onAddQuest={handleAddQuest}
               showToast={showToast}
             />
 
