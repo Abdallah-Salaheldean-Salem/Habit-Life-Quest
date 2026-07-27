@@ -12,6 +12,7 @@ import {
   Heart,
   Calendar,
   Flame,
+  ShieldCheck,
   BookOpen,
   Sword,
   Crown,
@@ -608,6 +609,14 @@ export default function App() {
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
   const appWideStreak = getAppWideStreak(ledgerDates, currentMockDate);
+
+  // Cues resisted — surfaced on the dashboard so the win is visible without
+  // opening the debuff panel. A resisted cue is any trigger not acted on.
+  const cuesResistedToday = triggerEvents.filter((t) => t.acted === false && t.at === currentMockDate).length;
+  const resistStreak = getAppWideStreak(
+    Array.from(new Set(triggerEvents.filter((t) => t.acted === false).map((t) => t.at))),
+    currentMockDate,
+  );
 
   // 7-day trend calculations
   const xpLast7Days = ledger
@@ -2182,6 +2191,22 @@ export default function App() {
                 </div>
 
               </div>
+
+              {/* Cues resisted — only when the debuff module is in use */}
+              {debuffs.length > 0 && (
+                <div className="mt-2.5 flex items-center justify-between bg-[#1a1a2e] border border-emerald-500/15 rounded-md px-3 py-2">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-mono text-[16px] font-bold text-emerald-400 tabular-nums">{cuesResistedToday}</span>
+                    <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider">cues resisted today</span>
+                  </span>
+                  {resistStreak > 0 && (
+                    <span className="flex items-center gap-1 font-mono text-[10px] text-[#d4af37] shrink-0" title={`${resistStreak}-day resist streak`}>
+                      <Flame className="w-3.5 h-3.5" /> {resistStreak}d
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* ACHIEVEMENTS CARD */}
