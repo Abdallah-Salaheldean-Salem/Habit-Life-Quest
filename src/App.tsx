@@ -1038,6 +1038,7 @@ export default function App() {
       debuffs,
       triggerEvents,
       traitGoals,
+      resistStreak,
     });
     return count + (isUnlocked ? 1 : 0);
   }, 0);
@@ -2233,6 +2234,7 @@ export default function App() {
                     debuffs,
                     triggerEvents,
                     traitGoals,
+                    resistStreak,
                   });
 
                   return (
