@@ -37,11 +37,12 @@ import {
   Sun,
   Moon,
   Download,
+  Upload,
   TrendingUp,
   TrendingDown
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, SaveState, FrictionItem, Debuff, TriggerEvent, TraitGoal, TraitId, TraitCheckin } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, TraitId, TraitCheckin } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
@@ -233,14 +234,12 @@ export default function App() {
   };
 
   const handleExportData = () => {
-    const data: SaveState = {
-      version: 1,
-      userName,
-      userClass,
-      quests,
-      ledger,
-      createdAt: new Date().toISOString()
-    };
+    // Export the complete, current-schema save (the old version-1 export dropped
+    // friction, debuffs, traits, tombstones and dates — a lossy backup).
+    const data = buildLocalSave({
+      userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+      traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
+    });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -251,6 +250,72 @@ export default function App() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     showToast('Save data exported successfully!');
+  };
+
+  // Import a previously-exported save: parse → validate → migrate → apply.
+  // Overwrites the current character, so it confirms first and never crashes
+  // on a bad file.
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportData = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reset = () => { if (importInputRef.current) importInputRef.current.value = ''; };
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.quests) || !Array.isArray(parsed.ledger)) {
+          showToast("That file doesn't look like a Habit-Life-Quest save.");
+          reset();
+          return;
+        }
+        if (!window.confirm('Importing replaces your current character and all progress on this device. Continue?')) {
+          reset();
+          return;
+        }
+        const migrated = migrate(parsed);
+        const isLive = migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter);
+        const today = toDateStr(new Date());
+        const fields = {
+          userName: migrated.userName || 'Adventurer',
+          userClass: migrated.userClass || 'scholar',
+          quests: migrated.quests || [],
+          ledger: migrated.ledger || [],
+          frictionItems: migrated.frictionItems || [],
+          debuffs: migrated.debuffs || [],
+          triggerEvents: migrated.triggerEvents || [],
+          traitGoals: migrated.traitGoals || [],
+          deletedIds: migrated.deletedIds || [],
+          liveClock: isLive,
+          debuffLocalOnly: migrated.debuffLocalOnly ?? debuffLocalOnly,
+          currentMockDate: isLive ? today : (migrated.currentMockDate || today),
+          hasCreatedCharacter: true,
+          syncEmail,
+        };
+        setUserName(fields.userName);
+        setUserClass(fields.userClass as UserClass);
+        setQuests(fields.quests);
+        setLedger(fields.ledger);
+        setFrictionItems(fields.frictionItems);
+        setDebuffs(fields.debuffs);
+        setTriggerEvents(fields.triggerEvents);
+        setTraitGoals(fields.traitGoals);
+        setDeletedIds(fields.deletedIds);
+        setLiveClock(fields.liveClock);
+        setDebuffLocalOnly(fields.debuffLocalOnly);
+        setCurrentMockDate(fields.currentMockDate);
+        setHasCreatedCharacter(true);
+        localStorage.setItem(SAVE_KEY, JSON.stringify(buildLocalSave(fields)));
+        showToast(`Save imported — welcome back, ${fields.userName}.`);
+      } catch {
+        showToast("Couldn't read that file — is it a valid save export?");
+      } finally {
+        reset();
+      }
+    };
+    reader.onerror = () => { showToast('Failed to read the file.'); reset(); };
+    reader.readAsText(file);
   };
 
   // Theme State
@@ -1910,6 +1975,37 @@ export default function App() {
                     )}
                   </form>
                 )}
+
+                {/* Local backup — works with or without cloud sync */}
+                <div className="mt-3 pt-3 border-t border-white/5">
+                  <span className="font-mono text-[8px] text-slate-500 uppercase tracking-widest block mb-1.5">
+                    Local backup
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleExportData}
+                      className="flex-1 bg-[#1a1a2e] border border-white/10 hover:border-[#d4af37]/40 text-slate-300 hover:text-[#d4af37] font-mono text-[9px] uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1"
+                    >
+                      <Download className="w-2.5 h-2.5" /> Export
+                    </button>
+                    <button
+                      onClick={() => importInputRef.current?.click()}
+                      className="flex-1 bg-[#1a1a2e] border border-white/10 hover:border-[#d4af37]/40 text-slate-300 hover:text-[#d4af37] font-mono text-[9px] uppercase tracking-wider py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1"
+                    >
+                      <Upload className="w-2.5 h-2.5" /> Import
+                    </button>
+                  </div>
+                  <p className="font-mono text-[8px] text-slate-600 mt-1.5 leading-relaxed">
+                    Download a JSON backup, or restore one on a new device. Import replaces this device's data.
+                  </p>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept="application/json,.json"
+                    className="hidden"
+                    onChange={handleImportData}
+                  />
+                </div>
               </div>
             )}
 
