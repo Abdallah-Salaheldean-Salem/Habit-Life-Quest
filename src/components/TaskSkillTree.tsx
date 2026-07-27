@@ -335,7 +335,7 @@ function MvdLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], lab
 
   return (
     <div className="mb-6 border border-[#d4af37]/20 rounded-lg bg-[#1a1a2e]/40">
-      <div className="flex items-center justify-between gap-2 p-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -347,17 +347,17 @@ function MvdLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], lab
             <ChevronRight className="w-4 h-4 text-[#d4af37] shrink-0" />
           )}
           <Sunrise className="w-4 h-4 text-[#d4af37] shrink-0" />
-          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-widest shrink-0">
+          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-wider">
             Minimum Viable Day
           </span>
-          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden sm:inline">
+          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden lg:inline">
             6 daily pillars · never zero
           </span>
         </button>
         <button
           type="button"
           onClick={() => onLoadSeason(MVD_QUESTS, 'Minimum Viable Day')}
-          className="shrink-0 bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all"
+          className="shrink-0 w-full sm:w-auto bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-2 sm:py-1.5 px-3 rounded cursor-pointer transition-all"
         >
           Load the day
         </button>
@@ -438,7 +438,7 @@ function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], 
 
   return (
     <div className="mb-6 border border-[#d4af37]/20 rounded-lg bg-[#1a1a2e]/40">
-      <div className="flex items-center justify-between gap-2 p-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-3">
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
@@ -449,17 +449,17 @@ function SeasonLoadout({ onLoadSeason }: { onLoadSeason: (drafts: QuestDraft[], 
           ) : (
             <ChevronRight className="w-4 h-4 text-[#d4af37] shrink-0" />
           )}
-          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-widest shrink-0">
+          <span className="font-serif text-sm font-bold text-[#d4af37] uppercase tracking-wider">
             Season Loadout
           </span>
-          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden sm:inline">
+          <span className="font-mono text-[8px] text-slate-500 uppercase tracking-wider truncate hidden lg:inline">
             the 24-month schedule · 3 nodes each
           </span>
         </button>
         <button
           type="button"
           onClick={() => onLoadSeason(seasonDrafts(SEASONS[0]), 'Season 1')}
-          className="shrink-0 bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all"
+          className="shrink-0 w-full sm:w-auto bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase tracking-wider py-2 sm:py-1.5 px-3 rounded cursor-pointer transition-all"
         >
           Start Season 1
         </button>
@@ -741,7 +741,7 @@ export default function TaskSkillTree({
         <span className="text-[#d4af37]">master</span> the nodes before them — unlock after{' '}
         <span className="text-[#d4af37]">30 consistent days</span>, run{' '}
         <span className="text-[#d4af37]">no more than 3 at once</span>, never zero.
-        <br className="hidden sm:block" />
+        <br />
         <span className="text-slate-600">
           Grind order: Sleep → Read + Track money → Strength + Skill → Deep work + 5K → Ship + Earn → Bank + Publish →
           Certify + Invest → Teach + Apply.
