@@ -2041,10 +2041,10 @@ export default function App() {
               LEFT COLUMN (CHARACTER, LEDGER, ACHIEVEMENTS)
               order-2 on phones so it drops below the quest board.
               ========================================================= */}
-          <div className="order-2 lg:order-1 lg:col-span-4 space-y-6">
-            
+          <div className="contents lg:block lg:order-1 lg:col-span-4 lg:space-y-6">
+
             {/* CHARACTER CARD */}
-            <div id="character-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden">
+            <div id="character-panel" className="order-1 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden">
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   CHARACTER
@@ -2139,7 +2139,7 @@ export default function App() {
             </div>
 
             {/* LEDGER CARD */}
-            <div id="ledger-stats-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+            <div id="ledger-stats-panel" className="order-4 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
               <h3 className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mb-4">
                 LEDGER
               </h3>
@@ -2211,7 +2211,7 @@ export default function App() {
             </div>
 
             {/* ACHIEVEMENTS CARD */}
-            <div id="achievements-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
+            <div id="achievements-panel" className="order-5 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   ACHIEVEMENTS
@@ -2278,32 +2278,36 @@ export default function App() {
             </div>
 
             {/* DEBUFFS PANEL — addiction interruption */}
-            <DebuffPanel
-              debuffs={debuffs}
-              triggerEvents={triggerEvents}
-              currentDate={currentMockDate}
-              localOnly={debuffLocalOnly}
-              onToggleLocalOnly={() => setDebuffLocalOnly((v) => !v)}
-              onAddDebuff={handleAddDebuff}
-              onUpdateDebuff={handleUpdateDebuff}
-              onDeleteDebuff={handleDeleteDebuff}
-              onAddTrigger={handleAddTrigger}
-              grantXp={grantDebuffXp}
-              showToast={showToast}
-            />
+            <div className="order-6 lg:order-none">
+              <DebuffPanel
+                debuffs={debuffs}
+                triggerEvents={triggerEvents}
+                currentDate={currentMockDate}
+                localOnly={debuffLocalOnly}
+                onToggleLocalOnly={() => setDebuffLocalOnly((v) => !v)}
+                onAddDebuff={handleAddDebuff}
+                onUpdateDebuff={handleUpdateDebuff}
+                onDeleteDebuff={handleDeleteDebuff}
+                onAddTrigger={handleAddTrigger}
+                grantXp={grantDebuffXp}
+                showToast={showToast}
+              />
+            </div>
 
             {/* TRAITS PANEL — the slow reshaping of personality */}
-            <TraitPanel
-              traitGoals={traitGoals}
-              quests={quests}
-              currentDate={currentMockDate}
-              onAddGoal={handleAddTraitGoal}
-              onUpdateGoal={handleUpdateTraitGoal}
-              onDeleteGoal={handleDeleteTraitGoal}
-              onAddCheckin={handleAddTraitCheckin}
-              onAddQuest={handleAddQuest}
-              showToast={showToast}
-            />
+            <div className="order-7 lg:order-none">
+              <TraitPanel
+                traitGoals={traitGoals}
+                quests={quests}
+                currentDate={currentMockDate}
+                onAddGoal={handleAddTraitGoal}
+                onUpdateGoal={handleUpdateTraitGoal}
+                onDeleteGoal={handleDeleteTraitGoal}
+                onAddCheckin={handleAddTraitCheckin}
+                onAddQuest={handleAddQuest}
+                showToast={showToast}
+              />
+            </div>
 
           </div>
 
@@ -2311,10 +2315,10 @@ export default function App() {
               RIGHT COLUMN (QUEST LOG, BALANCE, CHRONICLE)
               order-1 on phones so the quest board leads the page.
               ========================================================= */}
-          <div className="order-1 lg:order-2 lg:col-span-8 space-y-6">
-            
+          <div className="contents lg:block lg:order-2 lg:col-span-8 lg:space-y-6">
+
             {/* QUEST LOG CARD */}
-            <div id="quest-log-card" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
+            <div id="quest-log-card" className="order-3 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
               <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
@@ -2749,7 +2753,7 @@ export default function App() {
             </div>
 
             {/* BALANCE CARD (Radar Chart and effort progress bars) */}
-            <div id="balance-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+            <div id="balance-panel" className="order-2 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h3 className="font-serif text-sm tracking-widest text-[#d4af37] uppercase">
@@ -2829,7 +2833,9 @@ export default function App() {
             </div>
 
             {/* CHRONICLE PANEL */}
-            <Chronicle ledger={ledger} todayStr={currentMockDate} />
+            <div className="order-8 lg:order-none">
+              <Chronicle ledger={ledger} todayStr={currentMockDate} />
+            </div>
 
           </div>
         </div>
