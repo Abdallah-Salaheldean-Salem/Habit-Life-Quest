@@ -14,7 +14,18 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js');
+          // updateViaCache:'none' keeps the browser from serving a stale sw.js
+          // from its HTTP cache, so a new worker is detected on every visit.
+          navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
+            reg.update();
+            // When a new worker takes over, reload once so the fresh assets show.
+            let reloaded = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+              if (reloaded) return;
+              reloaded = true;
+              window.location.reload();
+            });
+          });
         });
       }
     </script>
