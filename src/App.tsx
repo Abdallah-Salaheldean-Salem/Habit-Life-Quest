@@ -2382,7 +2382,7 @@ export default function App() {
           <div className="contents lg:block lg:order-2 lg:col-span-8 lg:space-y-6">
 
             {/* QUEST LOG CARD */}
-            <div id="quest-log-card" className="order-3 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
+            <div id="quest-log-card" className={`${dayPhase === 'day' ? 'order-3' : 'order-first'} lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative`}>
               <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
