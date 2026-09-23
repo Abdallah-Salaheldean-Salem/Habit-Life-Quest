@@ -41,3 +41,14 @@ body {
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Campfire — after ~8 PM the ambient warms toward firelight. A subtle shift so
+   component colours stay legible; the Campfire panel carries the strong ember. */
+html.campfire,
+html.campfire body {
+  background-color: #0d0a08;
+}
+html.campfire body {
+  background-image: radial-gradient(1100px 620px at 50% 108%, rgba(194, 92, 30, 0.11), transparent 68%);
+  background-attachment: fixed;
+}

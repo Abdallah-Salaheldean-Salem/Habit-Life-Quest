@@ -91,6 +91,63 @@ export function calculateQuestXp(
 }
 
 // ---------------------------------------------------------
+// DAY / NIGHT CYCLE
+// Morning and evening routines are framed as time-gated ritual phases that
+// bookend the day: the Dawn Ritual (a "loadout" that buffs the journey) and
+// the Campfire (recovery + reflection). Phases follow the wall clock,
+// independent of the calendar date used for streaks — time of day, not date.
+// ---------------------------------------------------------
+export type DayPhase = 'dawn' | 'day' | 'campfire';
+
+/** Dawn Ritual is front-and-center before this local hour. */
+export const DAWN_UNTIL_HOUR = 9;
+/** Campfire takes over from this local hour onward. */
+export const CAMPFIRE_FROM_HOUR = 20;
+/** The daily buff a completed Dawn Ritual grants to every other quest. */
+export const DAWN_BUFF = 1.1;
+/** XP for banking the day with a Campfire reflection. */
+export const REFLECTION_XP = 15;
+
+/** Which phase of the day/night cycle a given wall-clock hour falls in. */
+export function getDayPhase(hour: number): DayPhase {
+  if (hour < DAWN_UNTIL_HOUR) return 'dawn';
+  if (hour >= CAMPFIRE_FROM_HOUR) return 'campfire';
+  return 'day';
+}
+
+/**
+ * True when the Dawn Ritual for `dateStr` is complete: there is at least one
+ * active dawn quest and every active dawn quest has a completion logged that
+ * day. Once complete, other quests earn the DAWN_BUFF for the rest of the day.
+ */
+export function isDawnRitualComplete(
+  quests: Quest[],
+  ledger: LedgerEntry[],
+  dateStr: string,
+): boolean {
+  const dawn = quests.filter((q) => q.active && q.phase === 'dawn');
+  if (dawn.length === 0) return false;
+  return dawn.every((q) => ledger.some((e) => e.questId === q.id && e.date === dateStr));
+}
+
+/**
+ * Apply the Dawn Ritual buff to a quest's base XP. Dawn quests never buff
+ * themselves — the buff is the reward for finishing the ritual, paid out on
+ * the rest of the day. Returns the (possibly) boosted XP and whether it moved.
+ */
+export function applyDawnBuff(
+  baseXp: number,
+  quest: Quest,
+  quests: Quest[],
+  ledger: LedgerEntry[],
+  dateStr: string,
+): { xp: number; buffed: boolean } {
+  if (quest.phase === 'dawn') return { xp: baseXp, buffed: false };
+  if (!isDawnRitualComplete(quests, ledger, dateStr)) return { xp: baseXp, buffed: false };
+  return { xp: Math.round(baseXp * DAWN_BUFF), buffed: true };
+}
+
+// ---------------------------------------------------------
 // LEVELS & TITLES
 // Levelling curve per v2: each level costs 100 × 1.25^(level-1) XP, so the
 // grind compounds the way the campaign's progression table assumes.

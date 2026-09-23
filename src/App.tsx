@@ -51,6 +51,8 @@ import TaskSkillTree from './components/TaskSkillTree';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import DebuffPanel from './components/DebuffPanel';
 import TraitPanel from './components/TraitPanel';
+import DawnRitual from './components/DawnRitual';
+import Campfire from './components/Campfire';
 import { ACHIEVEMENTS } from './utils/achievements';
 
 // Split out of the initial bundle — a modal and a one-off overlay that only
@@ -82,7 +84,10 @@ import {
   getMockSaveData,
   getUnlockProgress,
   getAutomaticity,
-  getAutomaticityState
+  getAutomaticityState,
+  getDayPhase,
+  applyDawnBuff,
+  REFLECTION_XP,
 } from './utils/logic';
 
 const SAVE_KEY = 'habitquest:save:v1';
@@ -333,6 +338,25 @@ export default function App() {
       document.documentElement.classList.remove('light-theme');
     }
   }, [theme]);
+
+  // Day/night cycle — driven by the wall clock, re-checked each minute so the
+  // page shifts phase (and the Campfire theme) without a reload.
+  const [nowHour, setNowHour] = useState<number>(() => new Date().getHours());
+  useEffect(() => {
+    const tick = () => setNowHour(new Date().getHours());
+    const t = setInterval(tick, 60_000);
+    return () => clearInterval(t);
+  }, []);
+  const dayPhase = getDayPhase(nowHour);
+
+  // After 8 PM the ambient warms toward firelight (only once a real character
+  // exists, so onboarding isn't tinted).
+  useEffect(() => {
+    document.documentElement.classList.toggle(
+      'campfire',
+      dayPhase === 'campfire' && hasCreatedCharacter,
+    );
+  }, [dayPhase, hasCreatedCharacter]);
 
 
   // Helper to pull remote save state, merge with local state, and push back
@@ -1151,7 +1175,8 @@ export default function App() {
         showToast(`Removed today's log for "${q.title}"`);
       } else {
         // Complete it today!
-        const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
         const newEntry: LedgerEntry = {
           id: uid('log'),
           date: currentMockDate,
@@ -1162,6 +1187,7 @@ export default function App() {
           difficulty: q.difficulty,
           type: q.type,
           kind: 'full',
+          ...(buffed ? { buffed: true } : {}),
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
@@ -1180,7 +1206,8 @@ export default function App() {
           showToast(`Undone today's log for "${q.title}"`);
         }
       } else {
-        const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
         const newEntry: LedgerEntry = {
           id: uid('log'),
           date: currentMockDate,
@@ -1191,6 +1218,7 @@ export default function App() {
           difficulty: q.difficulty,
           type: q.type,
           kind: 'full',
+          ...(buffed ? { buffed: true } : {}),
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
@@ -1203,7 +1231,8 @@ export default function App() {
         setLedger(ledger.filter((entry) => entry.questId !== q.id));
         showToast(`Reset milestone "${q.title}" to unfinished`);
       } else {
-        const xp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
+        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
         const newEntry: LedgerEntry = {
           id: uid('log'),
           date: currentMockDate,
@@ -1214,6 +1243,7 @@ export default function App() {
           difficulty: q.difficulty,
           type: q.type,
           kind: 'full',
+          ...(buffed ? { buffed: true } : {}),
         };
         setLedger([...ledger, newEntry]);
         maybeCelebrateMastery(q, newEntry);
@@ -1255,6 +1285,31 @@ export default function App() {
     if (wasMin(prev1) && wasMin(prev2)) {
       setTimeout(() => showToast(`That's three minimum days for "${q.title}" — consider making it easier.`), 1700);
     }
+  };
+
+  // Campfire micro-reflection — banks the day by logging one win into Spirit or
+  // Mind. One per day: submitting replaces it, empty text clears it. Modelled as
+  // a ledger entry so it persists and syncs like any other XP.
+  const handleReflect = (text: string, stat: 'spirit' | 'mind') => {
+    const id = `reflection_${currentMockDate}`;
+    const t = text.trim();
+    if (!t) {
+      setLedger(ledger.filter((e) => e.id !== id));
+      return;
+    }
+    const entry: LedgerEntry = {
+      id,
+      date: currentMockDate,
+      questId: id,
+      questTitle: `Campfire: ${t}`,
+      xp: REFLECTION_XP,
+      stat,
+      difficulty: 'easy',
+      type: 'milestone',
+      kind: 'reflection',
+    };
+    setLedger([...ledger.filter((e) => e.id !== id), entry]);
+    showToast(`Day banked — +${REFLECTION_XP} ${STATS[stat].name} XP. Rest well.`);
   };
 
   // Add a new quest (skips an exact-title duplicate that's already on the board)
@@ -1486,6 +1541,15 @@ export default function App() {
   const activeDailies = activeQuests.filter((q) => q.type === 'daily');
   const activeWeeklies = activeQuests.filter((q) => q.type === 'weekly');
   const activeMilestones = activeQuests.filter((q) => q.type === 'milestone');
+
+  // Day/night ritual groupings. Dawn/Campfire quests live in their own panels
+  // (not the stat filter) and are pulled out of the ordinary daily list so they
+  // don't show twice. `daytimeDailies` is what the main Daily section renders.
+  const dawnQuests = allActiveQuests.filter((q) => q.type === 'daily' && q.phase === 'dawn');
+  const campfireQuests = allActiveQuests.filter((q) => q.type === 'daily' && q.phase === 'campfire');
+  const daytimeDailies = activeDailies.filter((q) => !q.phase);
+  const countDaytimeClearedToday = daytimeDailies.filter((q) => isLoggedToday(q.id)).length;
+  const todaysReflection = ledger.find((e) => e.id === `reflection_${currentMockDate}`);
 
   // Fractions for fractions displays in UI:
   // 1. Standing quest count satisfied right now
@@ -2374,6 +2438,18 @@ export default function App() {
                 </div>
               </div>
 
+              {/* DAY / NIGHT RITUALS — shown above both views so the active
+                  ritual is front-and-center: Dawn before 9 AM, Campfire after 8 PM. */}
+              {(() => {
+                const dawn = (
+                  <DawnRitual key="dawn" quests={dawnQuests} ledger={ledger} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} />
+                );
+                const camp = (
+                  <Campfire key="campfire" quests={campfireQuests} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} todaysReflection={todaysReflection} onReflect={handleReflect} />
+                );
+                return dayPhase === 'campfire' ? [camp, dawn] : [dawn, camp];
+              })()}
+
               {questViewMode === 'tree' ? (
                 <TaskSkillTree
                   onAddQuest={handleAddQuest}
@@ -2415,22 +2491,23 @@ export default function App() {
                     ))}
                   </div>
 
-              {/* DAILY QUESTS CONTAINER */}
-              <div className="space-y-4 mb-8">
+              {/* DAILY QUESTS CONTAINER — dimmed at the Campfire so the day's
+                  unfinished quests recede while you wind down. */}
+              <div className={`space-y-4 mb-8 transition-opacity duration-500 ${dayPhase === 'campfire' ? 'opacity-50' : ''}`}>
                 <div className="flex justify-between items-center border-b border-white/5 pb-1.5">
                   <h3 className="font-mono text-[10px] text-slate-500 font-bold uppercase tracking-wider">
                     DAILY QUESTS
                   </h3>
                   <span className="font-mono text-[9px] text-slate-500 uppercase">
-                    {countDailiesClearedToday} of {activeDailies.length} cleared today
+                    {countDaytimeClearedToday} of {daytimeDailies.length} cleared today
                   </span>
                 </div>
 
-                {activeDailies.length === 0 ? (
+                {daytimeDailies.length === 0 ? (
                   <p className="font-mono text-[10px] text-slate-600 py-2">No standing daily quests. Click "+ Add a Quest" to establish one!</p>
                 ) : (
                   <div className="space-y-3">
-                    {activeDailies.map((q) => {
+                    {daytimeDailies.map((q) => {
                       const completedToday = isLoggedToday(q.id);
                       const config = STATS[q.stat];
                       const streak = getQuestStreak(q);
