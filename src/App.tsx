@@ -1328,6 +1328,32 @@ export default function App() {
     showToast(`Drafted new Quest: "${newQuest.title}"`);
   };
 
+  // Quick-add a ritual step — a low-friction daily quest tagged to a phase.
+  // One step makes a single "routine" checkbox; several make a checklist. This
+  // is what lets the user choose how granular their Dawn/Campfire ritual is.
+  const handleAddRitualStep = (phase: 'dawn' | 'campfire', title: string) => {
+    const t = title.trim();
+    if (!t) return;
+    if (quests.some((q) => q.active && q.title === t)) {
+      showToast(`"${t}" is already on your board.`);
+      return;
+    }
+    const stat: StatType = phase === 'dawn' ? 'body' : 'spirit';
+    const newQuest: Quest = {
+      id: uid('quest'),
+      title: t,
+      stat,
+      difficulty: 'easy',
+      type: 'daily',
+      target: 1,
+      active: true,
+      createdAt: currentMockDate,
+      phase,
+    };
+    setQuests([...quests, newQuest]);
+    showToast(`Added to your ${phase === 'dawn' ? 'Dawn Ritual' : 'Campfire'}.`);
+  };
+
   // Load a whole season's three nodes at once (skipping any already active).
   const handleLoadSeason = (
     drafts: Omit<Quest, 'id' | 'createdAt' | 'active'>[],
@@ -2442,10 +2468,10 @@ export default function App() {
                   ritual is front-and-center: Dawn before 9 AM, Campfire after 8 PM. */}
               {(() => {
                 const dawn = (
-                  <DawnRitual key="dawn" quests={dawnQuests} ledger={ledger} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} />
+                  <DawnRitual key="dawn" quests={dawnQuests} ledger={ledger} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} onAddStep={(t) => handleAddRitualStep('dawn', t)} onDeleteStep={handleDeleteQuest} />
                 );
                 const camp = (
-                  <Campfire key="campfire" quests={campfireQuests} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} todaysReflection={todaysReflection} onReflect={handleReflect} />
+                  <Campfire key="campfire" quests={campfireQuests} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} todaysReflection={todaysReflection} onReflect={handleReflect} onAddStep={(t) => handleAddRitualStep('campfire', t)} onDeleteStep={handleDeleteQuest} />
                 );
                 return dayPhase === 'campfire' ? [camp, dawn] : [dawn, camp];
               })()}
