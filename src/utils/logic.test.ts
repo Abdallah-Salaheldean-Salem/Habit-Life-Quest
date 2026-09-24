@@ -19,6 +19,10 @@ import {
   getAppWideStreak,
   getWeeklyQuestStreak,
   getUnlockProgress,
+  getDayPhase,
+  isDawnRitualComplete,
+  applyDawnBuff,
+  DAWN_BUFF,
 } from './logic';
 import { LedgerEntry, Quest } from '../types';
 
@@ -220,5 +224,71 @@ describe('getUnlockProgress', () => {
     const p = getUnlockProgress(q, led, '2026-07-26');
     expect(p.unlocked).toBe(true);
     expect(p.unit).toBe('weeks');
+  });
+});
+
+// --- day / night cycle ---------------------------------------------------
+describe('getDayPhase', () => {
+  it('maps the wall-clock hour to a phase', () => {
+    expect(getDayPhase(0)).toBe('dawn');
+    expect(getDayPhase(6)).toBe('dawn');
+    expect(getDayPhase(8)).toBe('dawn');
+    expect(getDayPhase(9)).toBe('day'); // dawn ends at 9
+    expect(getDayPhase(14)).toBe('day');
+    expect(getDayPhase(19)).toBe('day');
+    expect(getDayPhase(20)).toBe('campfire'); // campfire from 20
+    expect(getDayPhase(23)).toBe('campfire');
+  });
+});
+
+describe('isDawnRitualComplete', () => {
+  const dawnA = dailyQuest({ id: 'dawnA', phase: 'dawn' });
+  const dawnB = dailyQuest({ id: 'dawnB', phase: 'dawn' });
+  const normal = dailyQuest({ id: 'normal' });
+
+  it('is false when there are no dawn quests', () => {
+    expect(isDawnRitualComplete([normal], [], '2026-07-18')).toBe(false);
+  });
+
+  it('is false until every active dawn quest is logged that day', () => {
+    const led = [entry('dawnA', '2026-07-18')];
+    expect(isDawnRitualComplete([dawnA, dawnB], led, '2026-07-18')).toBe(false);
+  });
+
+  it('is true once all dawn quests are logged that day', () => {
+    const led = [entry('dawnA', '2026-07-18'), entry('dawnB', '2026-07-18')];
+    expect(isDawnRitualComplete([dawnA, dawnB], led, '2026-07-18')).toBe(true);
+  });
+
+  it('ignores completions from other days and archived dawn quests', () => {
+    const led = [entry('dawnA', '2026-07-18'), entry('dawnB', '2026-07-17')];
+    expect(isDawnRitualComplete([dawnA, dawnB], led, '2026-07-18')).toBe(false);
+    // dawnB archived -> only dawnA counts, and it's done today
+    const archivedB = { ...dawnB, active: false };
+    expect(isDawnRitualComplete([dawnA, archivedB], [entry('dawnA', '2026-07-18')], '2026-07-18')).toBe(true);
+  });
+});
+
+describe('applyDawnBuff', () => {
+  const dawnA = dailyQuest({ id: 'dawnA', phase: 'dawn' });
+  const normal = dailyQuest({ id: 'normal' });
+  const complete = [entry('dawnA', '2026-07-18')];
+
+  it('boosts a normal quest by 10% once the ritual is complete', () => {
+    const r = applyDawnBuff(100, normal, [dawnA, normal], complete, '2026-07-18');
+    expect(r.buffed).toBe(true);
+    expect(r.xp).toBe(Math.round(100 * DAWN_BUFF));
+  });
+
+  it('does not buff before the ritual is complete', () => {
+    const r = applyDawnBuff(100, normal, [dawnA, normal], [], '2026-07-18');
+    expect(r.buffed).toBe(false);
+    expect(r.xp).toBe(100);
+  });
+
+  it('never buffs a dawn quest itself', () => {
+    const r = applyDawnBuff(100, dawnA, [dawnA, normal], complete, '2026-07-18');
+    expect(r.buffed).toBe(false);
+    expect(r.xp).toBe(100);
   });
 });

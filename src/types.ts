@@ -99,7 +99,17 @@ export interface Quest {
    * daily quests: a vague quest is a quest that fails.
    */
   intention?: QuestIntention;
+  /**
+   * Day/night ritual this quest belongs to. A quest with no phase is an
+   * ordinary daytime quest. 'dawn' quests form the morning "Dawn Ritual"
+   * (completing all of them grants a daily XP buff); 'campfire' quests form
+   * the evening wind-down. Only meaningful for daily quests.
+   */
+  phase?: QuestPhase;
 }
+
+/** The day/night ritual a quest can belong to. */
+export type QuestPhase = 'dawn' | 'campfire';
 
 export interface QuestIntention {
   /** The cue that triggers it, e.g. "after I finish dinner". */
@@ -130,9 +140,12 @@ export interface LedgerEntry {
    * never-zero fallback (40% XP) that still preserves the streak; 'friction'
    * is a one-time environment change (not a quest completion). Legacy entries
    * with no kind are treated as 'full'. 'debuff' and 'trait' are XP from the
-   * behavior-change modules, not quest completions.
+   * behavior-change modules, not quest completions. 'reflection' is the
+   * Campfire micro-reflection that banks the day into Spirit or Mind.
    */
-  kind?: 'full' | 'minimum' | 'friction' | 'debuff' | 'trait';
+  kind?: 'full' | 'minimum' | 'friction' | 'debuff' | 'trait' | 'reflection';
+  /** True when the Dawn Ritual's daily buff (+10% XP) was applied to this entry. */
+  buffed?: boolean;
 }
 
 /**

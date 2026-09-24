@@ -9,6 +9,7 @@ import {
   Quest,
   QuestDifficulty,
   QuestType,
+  QuestPhase,
   StatType,
   STATS,
   UserClass,
@@ -31,6 +32,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
   const [stat, setStat] = useState<StatType>('body');
   const [difficulty, setDifficulty] = useState<QuestDifficulty>('normal');
   const [type, setType] = useState<QuestType>('daily');
+  const [phase, setPhase] = useState<'' | QuestPhase>('');
   const [target, setTarget] = useState(3);
   const [cue, setCue] = useState('');
   const [location, setLocation] = useState('');
@@ -50,6 +52,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
     setStat('body');
     setDifficulty('normal');
     setType('daily');
+    setPhase('');
     setTarget(3);
     setCue('');
     setLocation('');
@@ -82,6 +85,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
       target: type === 'weekly' ? Math.max(1, target) : 1,
       ...(desc ? { description: desc } : {}),
       ...(intention ? { intention } : {}),
+      ...(type === 'daily' && phase ? { phase } : {}),
     });
     reset();
     onClose();
@@ -184,6 +188,42 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
               ))}
             </div>
           </div>
+
+          {/* TIME OF DAY — assigns a daily quest to a morning/evening ritual */}
+          {type === 'daily' && (
+            <div>
+              <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+                Time of day <span className="text-slate-600 lowercase tracking-normal">· optional ritual</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {([
+                  { key: '', label: 'Anytime' },
+                  { key: 'dawn', label: 'Dawn' },
+                  { key: 'campfire', label: 'Campfire' },
+                ] as const).map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setPhase(opt.key)}
+                    className={`p-2.5 rounded-lg border text-center font-mono text-[10px] uppercase tracking-wider transition-all cursor-pointer ${
+                      phase === opt.key
+                        ? opt.key === 'dawn'
+                          ? 'border-amber-500/60 bg-amber-500/10 text-amber-300'
+                          : opt.key === 'campfire'
+                            ? 'border-orange-500/60 bg-orange-500/10 text-orange-300'
+                            : 'border-[#d4af37]/60 bg-[#d4af37]/10 text-[#d4af37]'
+                        : 'border-white/5 text-slate-400 hover:border-white/15'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="font-mono text-[9px] text-slate-500 mt-1.5 leading-relaxed">
+                Dawn quests form the morning ritual — finish them all for a +10% XP buff all day. Campfire quests are the evening wind-down.
+              </p>
+            </div>
+          )}
 
           {/* DIFFICULTY */}
           <div>
