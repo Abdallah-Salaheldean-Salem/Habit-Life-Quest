@@ -26,7 +26,7 @@ interface DawnRitualProps {
 /**
  * The Dawn Ritual — the morning "loadout". Finishing every step grants a +10%
  * XP buff on all other quests that day. Front-and-center before 9 AM, then it
- * recedes to a slim buff chip. You choose the granularity: keep it to one step
+ * recedes to a slim chip/strip. You choose the granularity: keep it to one step
  * for a single "Morning Routine" checkbox, or add several for a checklist.
  */
 export default function DawnRitual({
@@ -41,17 +41,37 @@ export default function DawnRitual({
   onDeleteStep,
 }: DawnRitualProps) {
   const [draft, setDraft] = useState('');
+  const [expanded, setExpanded] = useState(false);
   const prominent = phase === 'dawn';
+  // "open" = show the full editable panel: either it's the morning, or the
+  // user tapped the slim strip to set it up.
+  const open = prominent || expanded;
 
-  // Nothing set up yet: only offer setup in the morning, and stay out of the
-  // way the rest of the day.
-  if (quests.length === 0 && !prominent) return null;
-
-  const complete = isDawnRitualComplete(quests, ledger, currentDate);
+  const complete = quests.length > 0 && isDawnRitualComplete(quests, ledger, currentDate);
   const doneCount = quests.filter((q) => isLoggedToday(q.id)).length;
 
+  // Nothing set up and not open → a slim, always-visible entry point so the
+  // ritual is discoverable at any hour without cluttering the board.
+  if (quests.length === 0 && !open) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="mb-5 flex w-full items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-left transition-all hover:border-amber-400/40"
+      >
+        <Sunrise className="h-3.5 w-3.5 text-amber-400" />
+        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-300">
+          Dawn Ritual
+        </span>
+        <span className="hidden font-mono text-[9px] uppercase tracking-wider text-amber-400/50 sm:inline">
+          · set up your morning loadout
+        </span>
+        <Plus className="ml-auto h-3.5 w-3.5 text-amber-400/70" />
+      </button>
+    );
+  }
+
   // Ritual done and the morning has passed → collapse to a slim buff chip.
-  if (complete && !prominent) {
+  if (complete && !open) {
     return (
       <div className="mb-5 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2">
         <Sunrise className="h-3.5 w-3.5 text-amber-400" />
@@ -83,14 +103,25 @@ export default function DawnRitual({
             Dawn Ritual
           </h3>
         </div>
-        {quests.length > 0 && (
+        {quests.length > 0 ? (
           <span className="font-mono text-[9px] uppercase tracking-wider text-amber-400/80">
             {doneCount} of {quests.length} done
           </span>
+        ) : (
+          expanded && !prominent && (
+            <button
+              onClick={() => setExpanded(false)}
+              className="p-1 text-slate-500 hover:text-amber-300"
+              title="Collapse"
+              aria-label="Collapse"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )
         )}
       </div>
 
-      {prominent && (
+      {open && (
         <p className="mb-3 font-serif text-[13px] italic leading-snug text-amber-100/70">
           {quests.length === 0
             ? 'Set up your morning loadout. Add one step for a single checkbox, or a few for a checklist.'
@@ -137,7 +168,7 @@ export default function DawnRitual({
                     </span>
                   </span>
                 </button>
-                {prominent && (
+                {open && (
                   <button
                     onClick={() => onDeleteStep(q.id)}
                     className="shrink-0 p-1 text-slate-600 hover:text-rose-400"
@@ -154,7 +185,7 @@ export default function DawnRitual({
       )}
 
       {/* Add-step input — how the user dials in the ritual's granularity. */}
-      {prominent && (
+      {open && (
         <div className="mt-2.5 flex items-center gap-1.5">
           <input
             value={draft}
