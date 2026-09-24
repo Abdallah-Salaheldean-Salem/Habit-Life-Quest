@@ -45,13 +45,32 @@ export default function Campfire({
   onDeleteStep,
 }: CampfireProps) {
   const prominent = phase === 'campfire';
+  const [expanded, setExpanded] = useState(false);
+  const open = prominent || expanded;
   const banked = Boolean(todaysReflection);
   const [text, setText] = useState('');
   const [reflectStat, setReflectStat] = useState<'spirit' | 'mind'>('spirit');
   const [draft, setDraft] = useState('');
 
-  // Only surface it in the evening, or as a slim reminder when steps exist.
-  if (!prominent && quests.length === 0) return null;
+  // Nothing set up and not open → a slim, always-visible entry point so the
+  // ritual is discoverable at any hour without cluttering the board.
+  if (quests.length === 0 && !open) {
+    return (
+      <button
+        onClick={() => setExpanded(true)}
+        className="mb-5 flex w-full items-center gap-2 rounded-lg border border-orange-500/20 bg-orange-500/5 px-3.5 py-2 text-left transition-all hover:border-orange-400/40"
+      >
+        <Flame className="h-3.5 w-3.5 text-orange-400" />
+        <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-orange-300">
+          The Campfire
+        </span>
+        <span className="hidden font-mono text-[9px] uppercase tracking-wider text-orange-400/50 sm:inline">
+          · set up your evening wind-down
+        </span>
+        <Plus className="ml-auto h-3.5 w-3.5 text-orange-400/70" />
+      </button>
+    );
+  }
 
   const bank = () => {
     const t = text.trim();
@@ -74,11 +93,21 @@ export default function Campfire({
           The Campfire
         </h3>
       </div>
-      {!prominent && (
-        <span className="font-mono text-[9px] uppercase tracking-wider text-orange-400/70">
-          opens after 8 PM
-        </span>
-      )}
+      {!prominent &&
+        (expanded ? (
+          <button
+            onClick={() => setExpanded(false)}
+            className="p-1 text-slate-500 hover:text-orange-300"
+            title="Collapse"
+            aria-label="Collapse"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <span className="font-mono text-[9px] uppercase tracking-wider text-orange-400/70">
+            opens after 8 PM
+          </span>
+        ))}
     </div>
   );
 
@@ -92,9 +121,11 @@ export default function Campfire({
     >
       {banner}
 
-      {prominent && (
+      {open && (
         <p className="mb-3 font-serif text-[13px] italic leading-snug text-orange-100/70">
-          Rest at the fire. Wind down, then bank the day with one line about what went right.
+          {prominent
+            ? 'Rest at the fire. Wind down, then bank the day with one line about what went right.'
+            : 'Set up your evening wind-down. Add one step for a single checkbox, or a few for a checklist. The reflection opens after 8 PM.'}
         </p>
       )}
 
@@ -128,7 +159,7 @@ export default function Campfire({
                     </span>
                   </span>
                 </button>
-                {prominent && (
+                {open && (
                   <button
                     onClick={() => onDeleteStep(q.id)}
                     className="shrink-0 p-1 text-slate-600 hover:text-rose-400"
@@ -145,7 +176,7 @@ export default function Campfire({
       )}
 
       {/* Add-step input — dials in the ritual's granularity. */}
-      {prominent && (
+      {open && (
         <div className="mb-3 flex items-center gap-1.5">
           <input
             value={draft}
@@ -170,7 +201,7 @@ export default function Campfire({
         </div>
       )}
 
-      {/* Micro-reflection — the "bank" action. Shown in the evening. */}
+      {/* Micro-reflection — the "bank" action. Evening only. */}
       {prominent && (
         <div className="rounded-lg border border-orange-500/20 bg-black/25 p-3">
           {banked ? (
