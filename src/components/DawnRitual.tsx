@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Sunrise, Check, Plus, X } from 'lucide-react';
+import { Sunrise, Check, Plus, X, Pencil } from 'lucide-react';
 import { Quest, LedgerEntry, UserClass, STATS } from '../types';
 import { DayPhase, calculateQuestXp, isDawnRitualComplete } from '../utils/logic';
 
@@ -70,15 +70,21 @@ export default function DawnRitual({
     );
   }
 
-  // Ritual done and the morning has passed → collapse to a slim buff chip.
+  // Ritual done and the morning has passed → collapse to a slim buff chip that
+  // can be tapped to reopen the editor.
   if (complete && !open) {
     return (
-      <div className="mb-5 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2">
-        <Sunrise className="h-3.5 w-3.5 text-amber-400" />
+      <button
+        onClick={() => setExpanded(true)}
+        className="mb-5 flex w-full items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-left transition-all hover:border-amber-400/50"
+        title="Edit the Dawn Ritual"
+      >
+        <Sunrise className="h-3.5 w-3.5 shrink-0 text-amber-400" />
         <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-300">
           Dawn Buff active · +10% XP on every quest today
         </span>
-      </div>
+        <Pencil className="ml-auto h-3 w-3 shrink-0 text-amber-400/60" />
+      </button>
     );
   }
 
@@ -104,9 +110,21 @@ export default function DawnRitual({
           </h3>
         </div>
         {quests.length > 0 ? (
-          <span className="font-mono text-[9px] uppercase tracking-wider text-amber-400/80">
-            {doneCount} of {quests.length} done
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[9px] uppercase tracking-wider text-amber-400/80">
+              {doneCount} of {quests.length} done
+            </span>
+            {!prominent && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="p-1 text-slate-500 hover:text-amber-300"
+                title={expanded ? 'Done editing' : 'Edit ritual'}
+                aria-label="Edit ritual"
+              >
+                {expanded ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3 w-3" />}
+              </button>
+            )}
+          </div>
         ) : (
           expanded && !prominent && (
             <button
