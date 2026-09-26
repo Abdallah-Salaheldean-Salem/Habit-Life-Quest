@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { Flame, Check, Moon, Plus, X } from 'lucide-react';
+import { Flame, Check, Moon, Plus, X, Pencil } from 'lucide-react';
 import { Quest, LedgerEntry, UserClass, STATS } from '../types';
 import { DayPhase, calculateQuestXp, REFLECTION_XP } from '../utils/logic';
 
@@ -93,21 +93,23 @@ export default function Campfire({
           The Campfire
         </h3>
       </div>
-      {!prominent &&
-        (expanded ? (
+      {!prominent && (
+        <div className="flex items-center gap-2">
+          {!expanded && (
+            <span className="font-mono text-[9px] uppercase tracking-wider text-orange-400/70">
+              opens after 8 PM
+            </span>
+          )}
           <button
-            onClick={() => setExpanded(false)}
+            onClick={() => setExpanded(!expanded)}
             className="p-1 text-slate-500 hover:text-orange-300"
-            title="Collapse"
-            aria-label="Collapse"
+            title={expanded ? 'Done editing' : 'Edit ritual'}
+            aria-label="Edit ritual"
           >
-            <X className="h-3.5 w-3.5" />
+            {expanded ? <X className="h-3.5 w-3.5" /> : <Pencil className="h-3 w-3" />}
           </button>
-        ) : (
-          <span className="font-mono text-[9px] uppercase tracking-wider text-orange-400/70">
-            opens after 8 PM
-          </span>
-        ))}
+        </div>
+      )}
     </div>
   );
 
