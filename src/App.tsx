@@ -40,7 +40,8 @@ import {
   Download,
   Upload,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Bell
 } from 'lucide-react';
 
 import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, TraitId, TraitCheckin } from './types';
@@ -53,6 +54,16 @@ import DebuffPanel from './components/DebuffPanel';
 import TraitPanel from './components/TraitPanel';
 import DawnRitual from './components/DawnRitual';
 import Campfire from './components/Campfire';
+import RemindersModal from './components/RemindersModal';
+import {
+  loadReminders,
+  saveReminders,
+  loadFired,
+  markFired,
+  dueReminders,
+  REMINDER_META,
+  ReminderSettings,
+} from './utils/reminders';
 import { ACHIEVEMENTS } from './utils/achievements';
 
 // Split out of the initial bundle — a modal and a one-off overlay that only
@@ -192,6 +203,8 @@ export default function App() {
   const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
   const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
+  const [isRemindersOpen, setIsRemindersOpen] = useState(false);
+  const [reminders, setReminders] = useState<ReminderSettings>(() => loadReminders());
   const [isEditingCharacter, setIsEditingCharacter] = useState(false);
   const [editName, setEditName] = useState('Abdallah');
   const [editClass, setEditClass] = useState<UserClass>('scholar');
@@ -357,6 +370,49 @@ export default function App() {
       dayPhase === 'campfire' && hasCreatedCharacter,
     );
   }, [dayPhase, hasCreatedCharacter]);
+
+  // Persist reminder settings.
+  useEffect(() => {
+    saveReminders(reminders);
+  }, [reminders]);
+
+  // Fire due reminders while the app is open/backgrounded. Local only — real
+  // closed-app push needs a server. Checked on mount and every 30s.
+  useEffect(() => {
+    if (!reminders.enabled) return;
+    const fire = async (key: 'dawn' | 'campfire' | 'daily') => {
+      const meta = REMINDER_META[key];
+      const opts: NotificationOptions = {
+        body: meta.body,
+        tag: `hlq-${key}`,
+        icon: '/logo-192.png',
+        badge: '/logo-192.png',
+        data: { url: '/' },
+      };
+      try {
+        const reg = await navigator.serviceWorker?.ready;
+        if (reg && 'showNotification' in reg) {
+          await reg.showNotification(meta.title, opts);
+        } else if (typeof Notification !== 'undefined') {
+          new Notification(meta.title, opts);
+        }
+      } catch {
+        /* ignore */
+      }
+    };
+    const check = () => {
+      if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      const now = new Date();
+      const todayStr = toDateStr(now);
+      dueReminders(reminders, now, loadFired(), todayStr).forEach((key) => {
+        markFired(key, todayStr);
+        fire(key);
+      });
+    };
+    check();
+    const t = setInterval(check, 30_000);
+    return () => clearInterval(t);
+  }, [reminders]);
 
 
   // Helper to pull remote save state, merge with local state, and push back
@@ -1938,6 +1994,19 @@ export default function App() {
               <Download className="w-4 h-4" />
             </button>
 
+            {/* Reminders */}
+            <button
+              onClick={() => setIsRemindersOpen(true)}
+              className={`p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
+                reminders.enabled
+                  ? 'border-[#d4af37]/40 text-[#d4af37]'
+                  : 'border-white/10 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37]'
+              }`}
+              title="Reminders"
+            >
+              <Bell className="w-4 h-4" />
+            </button>
+
             {/* Theme Toggle */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -2961,6 +3030,13 @@ export default function App() {
           />
         </Suspense>
       )}
+
+      <RemindersModal
+        isOpen={isRemindersOpen}
+        onClose={() => setIsRemindersOpen(false)}
+        settings={reminders}
+        onChange={setReminders}
+      />
 
       {/* EDIT CHARACTER OVERLAY MODAL */}
       {isEditingCharacter && (
