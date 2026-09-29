@@ -201,6 +201,7 @@ export default function App() {
   
   // UI states
   const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
+  const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('quests');
   const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
   const [isRemindersOpen, setIsRemindersOpen] = useState(false);
@@ -361,6 +362,10 @@ export default function App() {
     return () => clearInterval(t);
   }, []);
   const dayPhase = getDayPhase(nowHour);
+
+  // Which top-level cards show, by tab. Splitting the one long page into
+  // Quests / Character / Growth is the main lever against visual overload.
+  const show = (tab: 'quests' | 'character' | 'growth') => (mainTab === tab ? '' : 'hidden');
 
   // After 8 PM the ambient warms toward firelight (only once a real character
   // exists, so onboarding isn't tinted).
@@ -2194,16 +2199,40 @@ export default function App() {
 
       {/* CORE LAYOUT */}
       <main className="max-w-7xl mx-auto px-4 mt-6">
+        {/* Primary navigation — keeps each screen focused instead of stacking
+            everything into one long scroll. */}
+        <div className="mb-6 flex justify-center">
+          <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#15152a] p-1">
+            {([
+              { key: 'quests', label: 'Quests' },
+              { key: 'character', label: 'Character' },
+              { key: 'growth', label: 'Growth' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setMainTab(t.key)}
+                className={`rounded-full px-4 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all sm:px-6 sm:text-[11px] ${
+                  mainTab === t.key
+                    ? 'bg-[#d4af37] text-[#050510]'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           
           {/* =========================================================
               LEFT COLUMN (CHARACTER, LEDGER, ACHIEVEMENTS)
               order-2 on phones so it drops below the quest board.
               ========================================================= */}
-          <div className="contents lg:block lg:order-1 lg:col-span-4 lg:space-y-6">
+          <div className={`contents lg:block lg:order-1 lg:space-y-6 ${mainTab === 'growth' ? 'lg:col-span-12' : 'lg:col-span-4'}`}>
 
             {/* CHARACTER CARD */}
-            <div id="character-panel" className="order-1 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden">
+            <div id="character-panel" className={`order-1 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden ${show('character')}`}>
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   CHARACTER
@@ -2298,7 +2327,7 @@ export default function App() {
             </div>
 
             {/* LEDGER CARD */}
-            <div id="ledger-stats-panel" className="order-4 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+            <div id="ledger-stats-panel" className={`order-4 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('quests')}`}>
               <h3 className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mb-4">
                 LEDGER
               </h3>
@@ -2370,7 +2399,7 @@ export default function App() {
             </div>
 
             {/* ACHIEVEMENTS CARD */}
-            <div id="achievements-panel" className="order-5 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative">
+            <div id="achievements-panel" className={`order-5 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('character')}`}>
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   ACHIEVEMENTS
@@ -2437,7 +2466,7 @@ export default function App() {
             </div>
 
             {/* DEBUFFS PANEL — addiction interruption */}
-            <div className="order-6 lg:order-none">
+            <div className={`order-6 lg:order-none ${show('growth')}`}>
               <DebuffPanel
                 debuffs={debuffs}
                 triggerEvents={triggerEvents}
@@ -2454,7 +2483,7 @@ export default function App() {
             </div>
 
             {/* TRAITS PANEL — the slow reshaping of personality */}
-            <div className="order-7 lg:order-none">
+            <div className={`order-7 lg:order-none ${show('growth')}`}>
               <TraitPanel
                 traitGoals={traitGoals}
                 quests={quests}
@@ -2474,10 +2503,10 @@ export default function App() {
               RIGHT COLUMN (QUEST LOG, BALANCE, CHRONICLE)
               order-1 on phones so the quest board leads the page.
               ========================================================= */}
-          <div className="contents lg:block lg:order-2 lg:col-span-8 lg:space-y-6">
+          <div className={`${mainTab === 'growth' ? 'hidden' : 'contents lg:block'} lg:order-2 lg:col-span-8 lg:space-y-6`}>
 
             {/* QUEST LOG CARD */}
-            <div id="quest-log-card" className={`${dayPhase === 'day' ? 'order-3' : 'order-first'} lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative`}>
+            <div id="quest-log-card" className={`${dayPhase === 'day' ? 'order-3' : 'order-first'} lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('quests')}`}>
               <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
@@ -2925,7 +2954,7 @@ export default function App() {
             </div>
 
             {/* BALANCE CARD (Radar Chart and effort progress bars) */}
-            <div id="balance-panel" className="order-2 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+            <div id="balance-panel" className={`order-2 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('character')}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h3 className="font-serif text-sm tracking-widest text-[#d4af37] uppercase">
@@ -3005,7 +3034,7 @@ export default function App() {
             </div>
 
             {/* CHRONICLE PANEL */}
-            <div className="order-8 lg:order-none">
+            <div className={`order-8 lg:order-none ${show('character')}`}>
               <Chronicle ledger={ledger} todayStr={currentMockDate} />
             </div>
 
