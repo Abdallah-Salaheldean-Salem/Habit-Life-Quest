@@ -204,6 +204,7 @@ export default function App() {
   const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('quests');
   const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
+  const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
   const [isRemindersOpen, setIsRemindersOpen] = useState(false);
   const [reminders, setReminders] = useState<ReminderSettings>(() => loadReminders());
   const [isEditingCharacter, setIsEditingCharacter] = useState(false);
@@ -1387,6 +1388,23 @@ export default function App() {
     };
     setQuests([...quests, newQuest]);
     showToast(`Drafted new Quest: "${newQuest.title}"`);
+  };
+
+  // Edit an existing quest in place — keeps its id, createdAt, active flag,
+  // phase and ledger history, so its streak/automaticity/unlock progress
+  // survive a title/difficulty/stat change.
+  const handleUpdateQuest = (id: string, data: Omit<Quest, 'id' | 'createdAt' | 'active'>) => {
+    if (quests.some((q) => q.active && q.id !== id && q.title === data.title)) {
+      showToast(`"${data.title}" is already on your board.`);
+      return;
+    }
+    setQuests(
+      quests.map((q) =>
+        q.id === id ? { ...q, ...data, id: q.id, createdAt: q.createdAt, active: q.active } : q,
+      ),
+    );
+    showToast(`Updated "${data.title}".`);
+    setEditingQuest(null);
   };
 
   // Quick-add a ritual step — a low-friction daily quest tagged to a phase.
@@ -2713,14 +2731,23 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: delete action */}
-                          <button
-                            onClick={() => handleDeleteQuest(q.id)}
-                            className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Abandon Quest"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Right: edit + delete actions */}
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => setEditingQuest(q)}
+                              className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
+                              title="Edit Quest"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuest(q.id)}
+                              className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
+                              title="Abandon Quest"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -2833,14 +2860,23 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: delete action */}
-                          <button
-                            onClick={() => handleDeleteQuest(q.id)}
-                            className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Abandon Quest"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Right: edit + delete actions */}
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => setEditingQuest(q)}
+                              className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
+                              title="Edit Quest"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuest(q.id)}
+                              className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
+                              title="Abandon Quest"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -2926,14 +2962,23 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: delete action */}
-                          <button
-                            onClick={() => handleDeleteQuest(q.id)}
-                            className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
-                            title="Abandon Quest"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Right: edit + delete actions */}
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => setEditingQuest(q)}
+                              className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
+                              title="Edit Quest"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteQuest(q.id)}
+                              className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors cursor-pointer"
+                              title="Abandon Quest"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -3049,12 +3094,17 @@ export default function App() {
       </footer>
 
       {/* ADD QUEST OVERLAY MODAL — mounted only while open so its chunk is lazy */}
-      {isAddQuestOpen && (
+      {(isAddQuestOpen || editingQuest) && (
         <Suspense fallback={null}>
           <AddQuestModal
             isOpen={true}
-            onClose={() => setIsAddQuestOpen(false)}
+            editQuest={editingQuest ?? undefined}
+            onClose={() => {
+              setIsAddQuestOpen(false);
+              setEditingQuest(null);
+            }}
             onAdd={handleAddQuest}
+            onUpdate={handleUpdateQuest}
             userClass={userClass}
           />
         </Suspense>
