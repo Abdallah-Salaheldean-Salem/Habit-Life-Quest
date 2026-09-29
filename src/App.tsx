@@ -97,14 +97,18 @@ import {
   getAutomaticity,
   getAutomaticityState,
   getDayPhase,
-  applyDawnBuff,
   REFLECTION_XP,
 } from './utils/logic';
+import {
+  buildCompletionEntry,
+  removeDayCompletions,
+  removeOneCompletion,
+  removeAllCompletions,
+  updateQuestInList,
+} from './utils/questActions';
 
 const SAVE_KEY = 'habitquest:save:v1';
 
-// Minimum (never-zero) completions earn a fraction of the full XP.
-const MIN_XP_FACTOR = 0.4;
 // A one-time environment change (friction item) is worth a flat XP reward.
 const FRICTION_XP = 25;
 
@@ -1230,86 +1234,43 @@ export default function App() {
   const handleToggleCheckCircle = (q: Quest) => {
     const alreadyLoggedToday = isLoggedToday(q.id);
 
+    const logComplete = (toast: (xp: number) => string) => {
+      const entry = buildCompletionEntry({
+        quest: q,
+        quests,
+        ledger,
+        userClass,
+        date: currentMockDate,
+        id: uid('log'),
+      });
+      setLedger([...ledger, entry]);
+      maybeCelebrateMastery(q, entry);
+      showToast(toast(entry.xp));
+    };
+
     if (q.type === 'daily') {
       if (alreadyLoggedToday) {
-        // Undo today's completion (remove ledger entry)
-        setLedger(ledger.filter((entry) => !(entry.questId === q.id && entry.date === currentMockDate)));
+        setLedger(removeDayCompletions(ledger, q.id, currentMockDate));
         showToast(`Removed today's log for "${q.title}"`);
       } else {
-        // Complete it today!
-        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
-        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
-        const newEntry: LedgerEntry = {
-          id: uid('log'),
-          date: currentMockDate,
-          questId: q.id,
-          questTitle: q.title,
-          xp,
-          stat: q.stat,
-          difficulty: q.difficulty,
-          type: q.type,
-          kind: 'full',
-          ...(buffed ? { buffed: true } : {}),
-        };
-        setLedger([...ledger, newEntry]);
-        maybeCelebrateMastery(q, newEntry);
-        showToast(`Earned +${xp} XP! "${q.title}" logged`);
+        logComplete((xp) => `Earned +${xp} XP! "${q.title}" logged`);
       }
     } else if (q.type === 'weekly') {
-      // For weekly quests, the user can log it multiple times a week. Clicking adds a completion for today.
-      // If already logged today, we toggle it off (undo), otherwise we add another!
+      // Weekly quests can be logged several times a week; clicking again undoes
+      // one of today's logs.
       if (alreadyLoggedToday) {
-        // Remove one log for today
-        const idx = ledger.findIndex((entry) => entry.questId === q.id && entry.date === currentMockDate);
-        if (idx !== -1) {
-          const updatedLedger = [...ledger];
-          updatedLedger.splice(idx, 1);
-          setLedger(updatedLedger);
-          showToast(`Undone today's log for "${q.title}"`);
-        }
+        setLedger(removeOneCompletion(ledger, q.id, currentMockDate));
+        showToast(`Undone today's log for "${q.title}"`);
       } else {
-        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
-        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
-        const newEntry: LedgerEntry = {
-          id: uid('log'),
-          date: currentMockDate,
-          questId: q.id,
-          questTitle: q.title,
-          xp,
-          stat: q.stat,
-          difficulty: q.difficulty,
-          type: q.type,
-          kind: 'full',
-          ...(buffed ? { buffed: true } : {}),
-        };
-        setLedger([...ledger, newEntry]);
-        maybeCelebrateMastery(q, newEntry);
-        showToast(`Earned +${xp} XP! "${q.title}" logged today`);
+        logComplete((xp) => `Earned +${xp} XP! "${q.title}" logged today`);
       }
     } else if (q.type === 'milestone') {
-      // Milestones are done once and cleared forever
+      // Milestones are done once and cleared forever.
       if (isMilestoneSatisfied(q.id)) {
-        // Undo milestone
-        setLedger(ledger.filter((entry) => entry.questId !== q.id));
+        setLedger(removeAllCompletions(ledger, q.id));
         showToast(`Reset milestone "${q.title}" to unfinished`);
       } else {
-        const base = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
-        const { xp, buffed } = applyDawnBuff(base, q, quests, ledger, currentMockDate);
-        const newEntry: LedgerEntry = {
-          id: uid('log'),
-          date: currentMockDate,
-          questId: q.id,
-          questTitle: q.title,
-          xp,
-          stat: q.stat,
-          difficulty: q.difficulty,
-          type: q.type,
-          kind: 'full',
-          ...(buffed ? { buffed: true } : {}),
-        };
-        setLedger([...ledger, newEntry]);
-        maybeCelebrateMastery(q, newEntry);
-        showToast(`Milestone Complete! Earned +${xp} XP!`);
+        logComplete((xp) => `Milestone Complete! Earned +${xp} XP!`);
       }
     }
   };
@@ -1322,23 +1283,19 @@ export default function App() {
       showToast(`"${q.title}" is already logged today.`);
       return;
     }
-    const fullXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
-    const xp = Math.max(1, Math.round(fullXp * MIN_XP_FACTOR));
-    const newEntry: LedgerEntry = {
-      id: uid('log'),
+    const entry = buildCompletionEntry({
+      quest: q,
+      quests,
+      ledger,
+      userClass,
       date: currentMockDate,
-      questId: q.id,
-      questTitle: q.title,
-      xp,
-      stat: q.stat,
-      difficulty: q.difficulty,
-      type: q.type,
+      id: uid('log'),
       kind: 'minimum',
-    };
-    setLedger([...ledger, newEntry]);
-    maybeCelebrateMastery(q, newEntry);
+    });
+    setLedger([...ledger, entry]);
+    maybeCelebrateMastery(q, entry);
     const min = q.intention?.minVersion;
-    showToast(min ? `Never zero — did the minimum: ${min}. +${xp} XP, streak kept.` : `Never zero — minimum logged. +${xp} XP, streak kept.`);
+    showToast(min ? `Never zero — did the minimum: ${min}. +${entry.xp} XP, streak kept.` : `Never zero — minimum logged. +${entry.xp} XP, streak kept.`);
 
     // After two scaled-down days in a row, ask whether the quest is mis-scoped.
     const prev1 = getPreviousDateStr(currentMockDate);
@@ -1398,11 +1355,7 @@ export default function App() {
       showToast(`"${data.title}" is already on your board.`);
       return;
     }
-    setQuests(
-      quests.map((q) =>
-        q.id === id ? { ...q, ...data, id: q.id, createdAt: q.createdAt, active: q.active } : q,
-      ),
-    );
+    setQuests(updateQuestInList(quests, id, data));
     showToast(`Updated "${data.title}".`);
     setEditingQuest(null);
   };
