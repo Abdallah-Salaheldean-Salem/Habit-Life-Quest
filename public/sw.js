@@ -7,6 +7,21 @@
 // offline, and takes control immediately via skipWaiting + clients.claim.
 const CACHE = 'hlq-cache-v2';
 
+// Focus an open tab (or open one) when a reminder notification is tapped.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      for (const client of all) {
+        if ('focus' in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow('/');
+    })(),
+  );
+});
+
+
 self.addEventListener('install', () => {
   // Activate this version as soon as it is installed, without waiting for all
   // tabs to close.
