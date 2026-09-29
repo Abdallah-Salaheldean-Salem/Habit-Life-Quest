@@ -21,22 +21,25 @@ interface AddQuestModalProps {
   onClose: () => void;
   onAdd: (quest: Omit<Quest, 'id' | 'createdAt' | 'active'>) => void;
   userClass: UserClass;
+  /** When set, the modal edits this quest in place instead of adding a new one. */
+  editQuest?: Quest;
+  onUpdate?: (id: string, quest: Omit<Quest, 'id' | 'createdAt' | 'active'>) => void;
 }
 
 const DIFFICULTIES: QuestDifficulty[] = ['easy', 'normal', 'hard'];
 const TYPES: QuestType[] = ['daily', 'weekly', 'milestone'];
 
-export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: AddQuestModalProps) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [stat, setStat] = useState<StatType>('body');
-  const [difficulty, setDifficulty] = useState<QuestDifficulty>('normal');
-  const [type, setType] = useState<QuestType>('daily');
-  const [phase, setPhase] = useState<'' | QuestPhase>('');
-  const [target, setTarget] = useState(3);
-  const [cue, setCue] = useState('');
-  const [location, setLocation] = useState('');
-  const [minVersion, setMinVersion] = useState('');
+export default function AddQuestModal({ isOpen, onClose, onAdd, userClass, editQuest, onUpdate }: AddQuestModalProps) {
+  const [title, setTitle] = useState(editQuest?.title ?? '');
+  const [description, setDescription] = useState(editQuest?.description ?? '');
+  const [stat, setStat] = useState<StatType>(editQuest?.stat ?? 'body');
+  const [difficulty, setDifficulty] = useState<QuestDifficulty>(editQuest?.difficulty ?? 'normal');
+  const [type, setType] = useState<QuestType>(editQuest?.type ?? 'daily');
+  const [phase, setPhase] = useState<'' | QuestPhase>(editQuest?.phase ?? '');
+  const [target, setTarget] = useState(editQuest?.target ?? 3);
+  const [cue, setCue] = useState(editQuest?.intention?.cue ?? '');
+  const [location, setLocation] = useState(editQuest?.intention?.location ?? '');
+  const [minVersion, setMinVersion] = useState(editQuest?.intention?.minVersion ?? '');
   const [error, setError] = useState('');
 
   if (!isOpen) return null;
@@ -75,9 +78,9 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
     }
 
     const desc = description.trim();
-    const intention = c && l && m ? { cue: c, location: l, minVersion: m } : undefined;
+    const intention = c && l && m ? { ...(editQuest?.intention ?? {}), cue: c, location: l, minVersion: m } : undefined;
 
-    onAdd({
+    const draft = {
       title: trimmed,
       stat,
       difficulty,
@@ -86,7 +89,13 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
       ...(desc ? { description: desc } : {}),
       ...(intention ? { intention } : {}),
       ...(type === 'daily' && phase ? { phase } : {}),
-    });
+    };
+
+    if (editQuest && onUpdate) {
+      onUpdate(editQuest.id, draft);
+    } else {
+      onAdd(draft);
+    }
     reset();
     onClose();
   };
@@ -95,7 +104,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
     <div className="fixed inset-0 bg-[#050510]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">Draft a Quest</h2>
+          <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">{editQuest ? 'Edit Quest' : 'Draft a Quest'}</h2>
           <button
             onClick={onClose}
             className="p-1.5 text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
@@ -331,7 +340,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass }: Add
               type="submit"
               className="bg-gradient-to-r from-[#aa7c11] to-[#d4af37] hover:from-[#d4af37] hover:to-[#f3e5ab] text-[#050510] font-sans font-bold text-xs uppercase tracking-widest py-2.5 px-6 rounded-md shadow-lg transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <Plus className="w-3.5 h-3.5" /> Add
+              <Plus className="w-3.5 h-3.5" /> {editQuest ? 'Save' : 'Add'}
             </button>
           </div>
         </form>
