@@ -73,7 +73,7 @@ const MasteryCelebration = lazy(() => import('./components/MasteryCelebration'))
 
 // Real-world Supabase Sync client and service
 import { supabase } from './utils/supabase';
-import { requestOtp, verifyOtp, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
+import { registerCharacter, signInCharacter, idFromUser, pullSave, pushSave, mergeSaves, SaveStateData } from './utils/syncService';
 import { migrate } from './utils/migrate';
 import { uid } from './utils/id';
 import { buildLocalSave, buildCloudSave } from './utils/saveState';
@@ -200,9 +200,7 @@ export default function App() {
   const [showSyncInline, setShowSyncInline] = useState(false);
   const [creationEmail, setCreationEmail] = useState('');
   const [isSyncingLanding, setIsSyncingLanding] = useState(false);
-  const [showLandingOtpField, setShowLandingOtpField] = useState(false);
-  const [creationOtp, setCreationOtp] = useState('');
-  
+
   // UI states
   const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
   const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('character');
@@ -224,8 +222,9 @@ export default function App() {
   const [syncEmail, setSyncEmail] = useState<string | null>(null);
   const [emailInput, setEmailInput] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
-  const [showHeaderOtpField, setShowHeaderOtpField] = useState(false);
-  const [headerOtp, setHeaderOtp] = useState('');
+  // Character ID + password sync (shared by the header and onboarding forms).
+  const [syncPw, setSyncPw] = useState('');
+  const [syncMode, setSyncMode] = useState<'signin' | 'create'>('signin');
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -587,14 +586,14 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
-        setSyncEmail(session.user?.email || null);
-        handleInitialMerge(session.user?.id, session.user?.email || '');
+        setSyncEmail(idFromUser(session.user));
+        handleInitialMerge(session.user?.id, idFromUser(session.user));
       }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
-        setSyncEmail(session.user?.email || null);
+        setSyncEmail(idFromUser(session.user));
       } else {
         setSyncEmail(null);
       }
@@ -1427,38 +1426,25 @@ export default function App() {
     showToast(`Profile updated to ${name} the ${CLASSES[editClass].name}!`);
   };
 
-  // Trigger real Cloud Sync via email link (Requesting OTP / Verifying OTP)
+  // Cloud sync via Character ID + password (header popover).
   const handleCloudSync = async (e: React.FormEvent) => {
     e.preventDefault();
-    const email = emailInput.trim();
-    if (!email) return;
+    const id = emailInput.trim();
+    if (!id || !syncPw) return;
 
     setIsSyncing(true);
     try {
-      if (!showHeaderOtpField) {
-        // Request OTP
-        const res = await requestOtp(email);
-        if (res.success) {
-          setShowHeaderOtpField(true);
-          showToast('One-time password sent to your email!');
-        } else {
-          showToast(`Error: ${res.error || 'Failed to send code'}`);
-        }
+      const res = syncMode === 'create'
+        ? await registerCharacter(id, syncPw)
+        : await signInCharacter(id, syncPw);
+      if (res.success && res.session) {
+        const label = idFromUser(res.session.user);
+        setIsSyncOpen(false);
+        setSyncPw('');
+        showToast(syncMode === 'create' ? `Character "${label}" created — syncing.` : `Signed in as "${label}". Sync active.`);
+        await handleInitialMerge(res.session.user.id, label);
       } else {
-        // Verify OTP
-        const otp = headerOtp.trim();
-        if (!otp) return;
-        const res = await verifyOtp(email, otp);
-        if (res.success && res.session) {
-          setShowHeaderOtpField(false);
-          setIsSyncOpen(false);
-          setHeaderOtp('');
-          showToast('Verification successful! Sync active.');
-          // Merge save data
-          await handleInitialMerge(res.session.user.id, email);
-        } else {
-          showToast(`Error: ${res.error || 'Invalid code'}`);
-        }
+        showToast(res.error || 'Sign-in failed.');
       }
     } catch (err) {
       console.error(err);
@@ -1519,38 +1505,25 @@ export default function App() {
     showToast(`Welcome, ${name} the ${CLASSES[creationClass].name}! Your quest begins.`);
   };
 
-  // Handle cloud sync OTP request & verify on landing page
+  // Cloud sync via Character ID + password (onboarding screen).
   const handleSyncLanding = async (e: React.FormEvent) => {
     e.preventDefault();
-    const email = creationEmail.trim();
-    if (!email) return;
+    const id = creationEmail.trim();
+    if (!id || !syncPw) return;
 
     setIsSyncingLanding(true);
     try {
-      if (!showLandingOtpField) {
-        // Request OTP
-        const res = await requestOtp(email);
-        if (res.success) {
-          setShowLandingOtpField(true);
-          showToast('One-time password sent to your email!');
-        } else {
-          showToast(`Error: ${res.error || 'Failed to send code'}`);
-        }
+      const res = syncMode === 'create'
+        ? await registerCharacter(id, syncPw)
+        : await signInCharacter(id, syncPw);
+      if (res.success && res.session) {
+        const label = idFromUser(res.session.user);
+        setSyncPw('');
+        showToast(syncMode === 'create' ? `Character "${label}" created — syncing.` : `Signed in as "${label}". Character synced.`);
+        await handleInitialMerge(res.session.user.id, label);
+        setHasCreatedCharacter(true);
       } else {
-        // Verify OTP
-        const otp = creationOtp.trim();
-        if (!otp) return;
-        const res = await verifyOtp(email, otp);
-        if (res.success && res.session) {
-          setShowLandingOtpField(false);
-          setCreationOtp('');
-          showToast('Verification successful! Character synced.');
-          // Merge save data and enter dashboard
-          await handleInitialMerge(res.session.user.id, email);
-          setHasCreatedCharacter(true);
-        } else {
-          showToast(`Error: ${res.error || 'Invalid code'}`);
-        }
+        showToast(res.error || 'Sign-in failed.');
       }
     } catch (err) {
       console.error(err);
@@ -1805,63 +1778,78 @@ export default function App() {
                 </div>
               </form>
             ) : (
-              /* SIGN IN TO SYNC FORM */
-              <form onSubmit={handleSyncLanding} className="space-y-6">
+              /* SIGN IN TO SYNC FORM — Character ID + password */
+              <form onSubmit={handleSyncLanding} className="space-y-5">
                 <div className="text-center mb-6">
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
-                    SIGN IN TO SYNC
+                    {syncMode === 'create' ? 'CREATE A CHARACTER' : 'SIGN IN TO SYNC'}
                   </h2>
                   <p className="font-sans text-xs text-slate-400 mt-1.5 leading-normal">
-                    {showLandingOtpField 
-                      ? "Enter the 6-digit verification code sent to your email to pull your character save."
-                      : "Enter your email to request a passwordless code and synchronize your hero logs."}
+                    {syncMode === 'create'
+                      ? 'Pick a Character ID and password. Use the same pair on any device to carry your hero logs with you — no email needed.'
+                      : 'Enter your Character ID and password to pull this hero onto this device.'}
                   </p>
                 </div>
 
-                {!showLandingOtpField ? (
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
-                      EMAIL ADDRESS
-                    </label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="Enter your email address"
-                      value={creationEmail}
-                      onChange={(e) => setCreationEmail(e.target.value)}
-                      className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans"
-                    />
-                  </div>
-                ) : (
-                  <div>
-                    <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
-                      6-DIGIT CODE
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Enter 6-digit code"
-                      value={creationOtp}
-                      onChange={(e) => setCreationOtp(e.target.value)}
-                      className="w-full bg-[#1a1a2e] border border-[#d4af37]/40 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono tracking-widest text-center"
-                    />
-                  </div>
-                )}
+                {/* Mode toggle */}
+                <div className="flex bg-[#1a1a2e] border border-white/5 rounded-lg p-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setSyncMode('signin')}
+                    className={`flex-1 font-mono text-[10px] uppercase tracking-wider py-2 rounded-md transition-all cursor-pointer ${syncMode === 'signin' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Sign In
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSyncMode('create')}
+                    className={`flex-1 font-mono text-[10px] uppercase tracking-wider py-2 rounded-md transition-all cursor-pointer ${syncMode === 'create' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                  >
+                    Create New
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+                    CHARACTER ID
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    placeholder="e.g. shadow_knight"
+                    value={creationEmail}
+                    onChange={(e) => setCreationEmail(e.target.value)}
+                    className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono lowercase"
+                  />
+                  {syncMode === 'create' && (
+                    <p className="font-sans text-[10px] text-slate-500 mt-1.5">3–24 characters: letters, numbers, - or _</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
+                    PASSWORD
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder={syncMode === 'create' ? 'At least 6 characters' : 'Enter your password'}
+                    value={syncPw}
+                    onChange={(e) => setSyncPw(e.target.value)}
+                    className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-sans"
+                  />
+                </div>
 
                 <div className="flex gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      if (showLandingOtpField) {
-                        setShowLandingOtpField(false);
-                        setCreationOtp('');
-                      } else {
-                        setShowSyncInline(false);
-                      }
-                    }}
+                    onClick={() => setShowSyncInline(false)}
                     className="flex-1 border border-white/5 text-slate-400 font-mono text-[10px] uppercase tracking-wider py-2.5 rounded-md hover:bg-[#1a1a2e] transition-colors cursor-pointer"
                   >
-                    {showLandingOtpField ? 'Back to Email' : 'Back to Character Creation'}
+                    Back to Character Creation
                   </button>
                   <button
                     type="submit"
@@ -1870,10 +1858,10 @@ export default function App() {
                   >
                     {isSyncingLanding ? (
                       <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Verifying...
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> {syncMode === 'create' ? 'Creating...' : 'Signing in...'}
                       </>
                     ) : (
-                      showLandingOtpField ? 'Verify Code' : 'Request Code'
+                      syncMode === 'create' ? 'Create & Sync' : 'Sign In'
                     )}
                   </button>
                 </div>
@@ -2015,13 +2003,13 @@ export default function App() {
                   Optional Cloud Sync
                 </h4>
                 <p className="font-sans text-[10px] text-slate-400 leading-normal mb-3">
-                  Back up and mirror your habits across devices using passwordless email codes. Works fully offline by merging logs.
+                  Back up and mirror your habits across devices with a Character ID and password. Works fully offline by merging logs.
                 </p>
 
                 {syncEmail ? (
                   <div className="space-y-3">
                     <div className="bg-[#1a1a2e] border border-white/5 p-2.5 rounded text-left">
-                      <span className="font-mono text-[8px] text-slate-500 uppercase block">Synced Profile:</span>
+                      <span className="font-mono text-[8px] text-slate-500 uppercase block">Character ID:</span>
                       <span className="font-mono text-xs text-emerald-400 font-bold block overflow-ellipsis overflow-hidden">{syncEmail}</span>
                     </div>
                     <div className="flex gap-2">
@@ -2029,7 +2017,7 @@ export default function App() {
                         onClick={async () => {
                           const { data: { session } } = await supabase.auth.getSession();
                           if (session?.user) {
-                            await handleInitialMerge(session.user.id, session.user.email || '');
+                            await handleInitialMerge(session.user.id, idFromUser(session.user));
                           }
                         }}
                         disabled={isSyncing}
@@ -2047,8 +2035,7 @@ export default function App() {
                             showToast(`Logout error: ${error.message}`);
                           } else {
                             setSyncEmail(null);
-                            setShowHeaderOtpField(false);
-                            setHeaderOtp('');
+                            setSyncPw('');
                             showToast('Offline mode active. Connection severed.');
                           }
                         }}
@@ -2060,64 +2047,54 @@ export default function App() {
                   </div>
                 ) : (
                   <form onSubmit={handleCloudSync} className="space-y-3">
-                    {!showHeaderOtpField ? (
-                      <>
-                        <input
-                          type="email"
-                          required
-                          placeholder="Enter your email address"
-                          value={emailInput}
-                          onChange={(e) => setEmailInput(e.target.value)}
-                          className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none"
-                        />
-                        <button
-                          type="submit"
-                          disabled={isSyncing}
-                          className="w-full bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1.5"
-                        >
-                          {isSyncing ? (
-                            <>
-                              <RefreshCw className="w-3 h-3 animate-spin" /> Sending...
-                            </>
-                          ) : (
-                            'Request Passwordless Code'
-                          )}
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <input
-                          type="text"
-                          required
-                          placeholder="Enter 6-digit code"
-                          value={headerOtp}
-                          onChange={(e) => setHeaderOtp(e.target.value)}
-                          className="w-full bg-[#1a1a2e] border border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none tracking-widest text-center font-mono"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowHeaderOtpField(false);
-                              setHeaderOtp('');
-                            }}
-                            className="flex-1 bg-[#1a1a2e] border border-white/10 hover:border-white/20 text-slate-400 font-mono text-[9px] py-1.5 rounded cursor-pointer"
-                          >
-                            Back
-                          </button>
-                          <button
-                            type="submit"
-                            disabled={isSyncing}
-                            className="flex-1 bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer flex items-center justify-center gap-1"
-                          >
-                            {isSyncing ? (
-                              <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                            ) : null}
-                            <span>Verify</span>
-                          </button>
-                        </div>
-                      </>
-                    )}
+                    <div className="flex bg-[#1a1a2e] border border-white/5 rounded p-0.5 gap-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSyncMode('signin')}
+                        className={`flex-1 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded transition-all cursor-pointer ${syncMode === 'signin' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                      >
+                        Sign In
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSyncMode('create')}
+                        className={`flex-1 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded transition-all cursor-pointer ${syncMode === 'create' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
+                      >
+                        Create New
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      placeholder="Character ID"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none font-mono lowercase"
+                    />
+                    <input
+                      type="password"
+                      required
+                      placeholder={syncMode === 'create' ? 'Password (min 6 chars)' : 'Password'}
+                      value={syncPw}
+                      onChange={(e) => setSyncPw(e.target.value)}
+                      className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSyncing}
+                      className="w-full bg-[#d4af37] hover:bg-[#f3e5ab] text-[#050510] font-mono text-[9px] font-bold uppercase py-1.5 rounded cursor-pointer transition-all flex items-center justify-center gap-1.5"
+                    >
+                      {isSyncing ? (
+                        <>
+                          <RefreshCw className="w-3 h-3 animate-spin" /> {syncMode === 'create' ? 'Creating...' : 'Signing in...'}
+                        </>
+                      ) : (
+                        syncMode === 'create' ? 'Create & Sync' : 'Sign In'
+                      )}
+                    </button>
                   </form>
                 )}
 
