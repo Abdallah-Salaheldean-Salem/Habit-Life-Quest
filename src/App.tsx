@@ -1445,6 +1445,12 @@ export default function App() {
     showToast(exists ? `"${path.name}" reforged.` : `"${path.name}" forged — its first tier is open.`);
   };
 
+  // Paths read from an import file — already validated, renamed-safe and
+  // capped by importPaths(); just append them.
+  const handleImportPaths = (imported: CustomPath[]) => {
+    setCustomPaths((prev) => [...prev, ...imported]);
+  };
+
   const handleDeletePath = (id: string) => {
     const name = customPaths.find((p) => p.id === id)?.name ?? 'Path';
     setCustomPaths(customPaths.filter((p) => p.id !== id));
@@ -2612,6 +2618,8 @@ export default function App() {
                   onAddQuest={handleAddQuest}
                   onForge={() => { setEditingPath(null); setIsForgeOpen(true); }}
                   onEdit={(p) => { setEditingPath(p); setIsForgeOpen(true); }}
+                  onImportPaths={handleImportPaths}
+                  userClass={userClass}
                 />
               ) : (
                 <>
