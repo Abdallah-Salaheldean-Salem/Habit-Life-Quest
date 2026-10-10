@@ -1429,19 +1429,25 @@ export default function App() {
   // Cloud sync via Character ID + password (header popover).
   const handleCloudSync = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = emailInput.trim();
-    if (!id || !syncPw) return;
+    const field = emailInput.trim();
+    // Create: derive the ID from the character's name (the field overrides it).
+    // Sign in: the field is the typed Character ID and is required.
+    if (!syncPw || (syncMode === 'signin' && !field)) return;
 
     setIsSyncing(true);
     try {
       const res = syncMode === 'create'
-        ? await registerCharacter(id, syncPw)
-        : await signInCharacter(id, syncPw);
+        ? await registerCharacter(field || userName || 'Hero', syncPw)
+        : await signInCharacter(field, syncPw);
       if (res.success && res.session) {
         const label = idFromUser(res.session.user);
         setIsSyncOpen(false);
         setSyncPw('');
-        showToast(syncMode === 'create' ? `Character "${label}" created — syncing.` : `Signed in as "${label}". Sync active.`);
+        showToast(
+          syncMode === 'create'
+            ? `Your Character ID is ${res.assignedId || label} — save it to sign in on other devices.`
+            : `Signed in as "${label}". Sync active.`,
+        );
         await handleInitialMerge(res.session.user.id, label);
       } else {
         showToast(res.error || 'Sign-in failed.');
@@ -1508,18 +1514,26 @@ export default function App() {
   // Cloud sync via Character ID + password (onboarding screen).
   const handleSyncLanding = async (e: React.FormEvent) => {
     e.preventDefault();
-    const id = creationEmail.trim();
-    if (!id || !syncPw) return;
+    const field = creationEmail.trim();
+    // Create: the field is the new character's name (ID is auto-assigned).
+    // Sign in: the field is the typed Character ID and is required.
+    if (!syncPw || (syncMode === 'signin' && !field)) return;
 
     setIsSyncingLanding(true);
     try {
+      const name = field || creationName.trim() || userName || 'Hero';
       const res = syncMode === 'create'
-        ? await registerCharacter(id, syncPw)
-        : await signInCharacter(id, syncPw);
+        ? await registerCharacter(name, syncPw)
+        : await signInCharacter(field, syncPw);
       if (res.success && res.session) {
         const label = idFromUser(res.session.user);
         setSyncPw('');
-        showToast(syncMode === 'create' ? `Character "${label}" created — syncing.` : `Signed in as "${label}". Character synced.`);
+        if (syncMode === 'create') setUserName(name);
+        showToast(
+          syncMode === 'create'
+            ? `Your Character ID is ${res.assignedId || label} — save it to sign in on other devices.`
+            : `Signed in as "${label}". Character synced.`,
+        );
         await handleInitialMerge(res.session.user.id, label);
         setHasCreatedCharacter(true);
       } else {
@@ -1786,8 +1800,8 @@ export default function App() {
                   </h2>
                   <p className="font-sans text-xs text-slate-400 mt-1.5 leading-normal">
                     {syncMode === 'create'
-                      ? 'Pick a Character ID and password. Use the same pair on any device to carry your hero logs with you — no email needed.'
-                      : 'Enter your Character ID and password to pull this hero onto this device.'}
+                      ? "Name your character and pick a password — we'll assign you an ID like shadowknight#4821. Use it to carry your hero to any device. No email needed."
+                      : 'Enter your Character ID (like shadowknight#4821) and password to pull this hero onto this device.'}
                   </p>
                 </div>
 
@@ -1811,7 +1825,7 @@ export default function App() {
 
                 <div>
                   <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-2 font-bold">
-                    CHARACTER ID
+                    {syncMode === 'create' ? 'CHARACTER NAME' : 'CHARACTER ID'}
                   </label>
                   <input
                     type="text"
@@ -1819,13 +1833,13 @@ export default function App() {
                     autoCapitalize="none"
                     autoCorrect="off"
                     spellCheck={false}
-                    placeholder="e.g. shadow_knight"
+                    placeholder={syncMode === 'create' ? 'e.g. Shadow Knight' : 'e.g. shadowknight#4821'}
                     value={creationEmail}
                     onChange={(e) => setCreationEmail(e.target.value)}
-                    className="w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono lowercase"
+                    className={`w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono ${syncMode === 'create' ? '' : 'lowercase'}`}
                   />
                   {syncMode === 'create' && (
-                    <p className="font-sans text-[10px] text-slate-500 mt-1.5">3–24 characters: letters, numbers, - or _</p>
+                    <p className="font-sans text-[10px] text-slate-500 mt-1.5">Your ID is assigned automatically, e.g. <span className="text-slate-400 font-mono">shadowknight#4821</span>.</p>
                   )}
                 </div>
 
@@ -2050,14 +2064,14 @@ export default function App() {
                     <div className="flex bg-[#1a1a2e] border border-white/5 rounded p-0.5 gap-0.5">
                       <button
                         type="button"
-                        onClick={() => setSyncMode('signin')}
+                        onClick={() => { setSyncMode('signin'); setEmailInput(''); }}
                         className={`flex-1 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded transition-all cursor-pointer ${syncMode === 'signin' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
                       >
                         Sign In
                       </button>
                       <button
                         type="button"
-                        onClick={() => setSyncMode('create')}
+                        onClick={() => { setSyncMode('create'); setEmailInput(userName || ''); }}
                         className={`flex-1 font-mono text-[9px] uppercase tracking-wider py-1.5 rounded transition-all cursor-pointer ${syncMode === 'create' ? 'bg-[#d4af37] text-[#050510] font-bold' : 'text-slate-400 hover:text-slate-200'}`}
                       >
                         Create New
@@ -2069,11 +2083,14 @@ export default function App() {
                       autoCapitalize="none"
                       autoCorrect="off"
                       spellCheck={false}
-                      placeholder="Character ID"
+                      placeholder={syncMode === 'create' ? 'Character name' : 'Character ID (e.g. hero#4821)'}
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
-                      className="w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none font-mono lowercase"
+                      className={`w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none font-mono ${syncMode === 'create' ? '' : 'lowercase'}`}
                     />
+                    {syncMode === 'create' && (
+                      <p className="font-sans text-[9px] text-slate-500 -mt-1">You'll be assigned an ID like <span className="font-mono text-slate-400">name#4821</span>.</p>
+                    )}
                     <input
                       type="password"
                       required

@@ -4,7 +4,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mergeSaves, SaveStateData } from './syncService';
+import {
+  mergeSaves,
+  SaveStateData,
+  slugifyName,
+  generateCharacterId,
+  characterEmail,
+  displayId,
+  idFromUser,
+} from './syncService';
 import { Quest, LedgerEntry } from '../types';
 
 const base = (over: Partial<SaveStateData> = {}): SaveStateData => ({
@@ -105,5 +113,38 @@ describe('mergeSaves', () => {
   it('prefers a real (non-default) remote profile name over the local default', () => {
     const merged = mergeSaves(base({ userName: 'Abdallah' }), base({ userName: 'Layla' }));
     expect(merged.userName).toBe('Layla');
+  });
+});
+
+describe('Discord-style Character IDs', () => {
+  it('slugifies a name to a–z0–9 only, capped, with a fallback', () => {
+    expect(slugifyName('Shadow Knight')).toBe('shadowknight');
+    expect(slugifyName('Áéîøü!!!')).toBe('hero'); // nothing a–z0–9 survives → fallback
+    expect(slugifyName('a'.repeat(40)).length).toBe(15); // capped
+  });
+
+  it('generates an id like name#4821 with a matching canonical form', () => {
+    const { displayId: d, canonicalId } = generateCharacterId('Shadow Knight');
+    expect(d).toMatch(/^shadowknight#\d{4}$/);
+    expect(canonicalId).toMatch(/^shadowknight-\d{4}$/);
+    // the display and canonical share the same discriminator
+    expect(d.split('#')[1]).toBe(canonicalId.split('-')[1]);
+  });
+
+  it('maps both display and canonical ids to the same synthetic email', () => {
+    expect(characterEmail('shadowknight#4821')).toBe('shadowknight-4821@habitquest.app');
+    expect(characterEmail('shadowknight-4821')).toBe('shadowknight-4821@habitquest.app');
+    expect(characterEmail('  ShadowKnight#4821 ')).toBe('shadowknight-4821@habitquest.app');
+  });
+
+  it('renders a canonical id back to its display form, leaving display ids alone', () => {
+    expect(displayId('shadowknight-4821')).toBe('shadowknight#4821');
+    expect(displayId('shadowknight#4821')).toBe('shadowknight#4821');
+    expect(displayId('legacyname')).toBe('legacyname'); // no discriminator → unchanged
+  });
+
+  it('reads the display id from a signed-in user (metadata first, then email)', () => {
+    expect(idFromUser({ user_metadata: { character_id: 'hero#1234' } })).toBe('hero#1234');
+    expect(idFromUser({ email: 'hero-1234@habitquest.app' })).toBe('hero#1234');
   });
 });
