@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
 import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal } from '../types';
 
 export interface SaveStateData {
@@ -18,30 +18,90 @@ export interface SaveStateData {
   liveClock?: boolean;
 }
 
-/**
- * Request a passwordless one-time code for an email address.
- * Creates the user on first login.
- */
-export async function requestOtp(email: string): Promise<{ success: boolean; error?: string }> {
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { shouldCreateUser: true },
-  });
-  if (error) return { success: false, error: error.message };
-  return { success: true };
+// ---------------------------------------------------------
+// CHARACTER ID + PASSWORD AUTH
+// A character logs in with a short ID and a password — no email anywhere. Under
+// the hood it uses Supabase email/password auth with a synthetic address built
+// from the ID, so passwords are bcrypt-hashed and each account stays isolated
+// by row-level security.
+// ---------------------------------------------------------
+
+const SYNTH_DOMAIN = 'habitquest.app';
+
+/** Normalise a character ID (lowercase, trimmed). */
+export function normalizeId(id: string): string {
+  return id.trim().toLowerCase();
+}
+
+/** The synthetic email a character ID maps to. */
+export function characterEmail(id: string): string {
+  return `${normalizeId(id)}@${SYNTH_DOMAIN}`;
+}
+
+/** Turn a raw error code/message into something a human can read. */
+function friendly(code: string): string {
+  const c = (code || '').toLowerCase();
+  if (c.includes('id_taken')) return 'That Character ID is already taken — pick another.';
+  if (c.includes('invalid_id')) return 'Use 3–24 letters, numbers, - or _ for the Character ID.';
+  if (c.includes('weak_password')) return 'Password must be at least 6 characters.';
+  if (c.includes('invalid login') || c.includes('invalid_credentials')) return 'Wrong Character ID or password.';
+  return code || 'Something went wrong. Try again.';
 }
 
 /**
- * Verify the emailed one-time code and open a session.
+ * Create a new character (ID + password) and sign in. Registration goes through
+ * an edge function that admin-creates an already-confirmed user, so no email is
+ * sent.
  */
-export async function verifyOtp(
-  email: string,
-  token: string
+export async function registerCharacter(
+  id: string,
+  password: string,
 ): Promise<{ success: boolean; session?: any; error?: string }> {
-  const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
-  if (error) return { success: false, error: error.message };
+  const cleanId = normalizeId(id);
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/register`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ id: cleanId, password }),
+    });
+    let body: any = {};
+    try {
+      body = await res.json();
+    } catch {
+      /* ignore */
+    }
+    if (!res.ok || body?.error) {
+      return { success: false, error: friendly(body?.error || 'register_failed') };
+    }
+  } catch (e: any) {
+    return { success: false, error: e?.message || 'Network error.' };
+  }
+  // Created — now open a session with the password.
+  return signInCharacter(cleanId, password);
+}
+
+/** Sign in to an existing character with ID + password. */
+export async function signInCharacter(
+  id: string,
+  password: string,
+): Promise<{ success: boolean; session?: any; error?: string }> {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: characterEmail(id),
+    password,
+  });
+  if (error) return { success: false, error: friendly(error.message) };
   return { success: true, session: data.session };
 }
+
+/** The character ID for a signed-in user (from metadata, else the synthetic email). */
+export function idFromUser(user: any): string {
+  return user?.user_metadata?.character_id || String(user?.email || '').split('@')[0] || '';
+}
+
 
 /**
  * Fetch the latest save state for a user from Supabase.
