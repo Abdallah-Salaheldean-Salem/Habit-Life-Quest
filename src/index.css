@@ -13,6 +13,46 @@ body {
   max-width: 100%;
 }
 
+/* ---- Native-app polish for phones ---------------------------------------
+   - Keep text at the sizes we set (no mobile "font boosting"/landscape inflation).
+   - No grey/blue flash on tap; no double-tap-zoom delay on controls.
+   - Visible focus ring for keyboard users only. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a,
+input,
+select,
+textarea,
+[role='button'] {
+  touch-action: manipulation;
+}
+:focus-visible {
+  outline: 2px solid rgba(212, 175, 55, 0.7);
+  outline-offset: 2px;
+}
+/* iOS zooms the page when a field under 16px is focused — keep fields at 16px
+   on iOS phones so tapping a field never jolts the layout. */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 640px) {
+    input:not([type='checkbox']):not([type='radio']):not([type='range']),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}
+
+/* Inline metadata ("BODY  25 XP  NORMAL  31 days"): items are separated by
+   spacing rather than "·" so a wrapped line never starts or ends with a stray
+   separator. The class marks every item after the first. */
+.meta-sep {
+  margin-left: 0.375rem;
+}
+
 /* Custom effects referenced by class name in the UI */
 .glow-active {
   filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.55));

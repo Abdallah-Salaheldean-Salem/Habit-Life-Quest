@@ -41,7 +41,13 @@ import {
   Upload,
   TrendingUp,
   TrendingDown,
-  Bell
+  Bell,
+  MoreHorizontal,
+  UserRound,
+  Swords,
+  Sprout,
+  FlaskConical,
+  Lock
 } from 'lucide-react';
 
 import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, CustomPath, TraitId, TraitCheckin } from './types';
@@ -216,6 +222,11 @@ export default function App() {
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
   const [isRemindersOpen, setIsRemindersOpen] = useState(false);
+  // Phone header: secondary actions live in a ⋯ menu; diagnostics opens as a sheet.
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
+  const [isDiagOpen, setIsDiagOpen] = useState(false);
+  // Phones list unlocked achievements and fold the locked ones behind a toggle.
+  const [showLockedAch, setShowLockedAch] = useState(false);
   const [reminders, setReminders] = useState<ReminderSettings>(() => loadReminders());
   const [isEditingCharacter, setIsEditingCharacter] = useState(false);
   const [editName, setEditName] = useState('Abdallah');
@@ -1713,7 +1724,7 @@ export default function App() {
           </div>
 
           {/* MAIN CARD */}
-          <div className="w-full max-w-xl bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)]">
+          <div className="w-full max-w-xl bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-5 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)]">
             {!showSyncInline ? (
               /* CREATE YOUR CHARACTER FORM */
               <form onSubmit={handleBeginAdventure} className="space-y-6">
@@ -1821,7 +1832,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setCreationClass('bard')}
-                      className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-center ${
+                      className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-left sm:text-center ${
                         creationClass === 'bard'
                           ? 'border-pink-500/50 bg-pink-500/10 text-pink-400'
                           : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
@@ -1892,7 +1903,7 @@ export default function App() {
                     placeholder={syncMode === 'create' ? 'e.g. Shadow Knight' : 'e.g. shadowknight#4821'}
                     value={creationEmail}
                     onChange={(e) => setCreationEmail(e.target.value)}
-                    className={`w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono ${syncMode === 'create' ? '' : 'lowercase'}`}
+                    className={`w-full bg-[#1a1a2e] border border-white/5 focus:border-[#d4af37]/50 rounded-lg py-3 px-4 text-sm text-[#e0e0e0] placeholder-slate-600 outline-none transition-all font-mono ${syncMode === 'create' ? '' : 'lowercase placeholder:normal-case'}`}
                   />
                   {syncMode === 'create' && (
                     <p className="font-sans text-[10px] text-slate-500 mt-1.5">Your ID is assigned automatically, e.g. <span className="text-slate-400 font-mono">shadowknight#4821</span>.</p>
@@ -1954,8 +1965,9 @@ export default function App() {
           )}
         </div>
 
-        {/* Diagnostics Panel under landing screen */}
-        <div className="fixed bottom-4 right-4 z-50">
+        {/* Diagnostics Panel under landing screen — top-right on phones so it
+            doesn't sit on the class cards, bottom-right from sm up. */}
+        <div className="fixed top-[calc(env(safe-area-inset-top)+0.75rem)] right-3 sm:top-auto sm:bottom-4 sm:right-4 z-50">
           <DiagnosticsPanel
             currentMockDate={currentMockDate}
             onSetMockDate={setCurrentMockDate}
@@ -1977,12 +1989,12 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050510] text-[#e0e0e0] font-sans pb-24 antialiased selection:bg-[#d4af37]/30 selection:text-white">
+    <div className="min-h-screen bg-[#050510] text-[#e0e0e0] font-sans pb-[calc(6rem+env(safe-area-inset-bottom))] lg:pb-24 antialiased selection:bg-[#d4af37]/30 selection:text-white">
       
       {/* Toast Alert popups */}
       {toastMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-[#15152a] border border-[#d4af37]/30 text-[#d4af37] px-5 py-3 rounded-lg shadow-2xl font-mono text-xs flex items-center gap-2.5 animate-bounce">
-          <Sparkles className="w-4 h-4 text-[#d4af37] animate-pulse" />
+        <div role="status" className="fixed top-[calc(env(safe-area-inset-top)+0.75rem)] left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] sm:w-auto max-w-md bg-[#15152a] border border-[#d4af37]/30 text-[#d4af37] px-4 sm:px-5 py-3 rounded-lg shadow-2xl font-mono text-xs flex items-center gap-2.5 animate-fade-in">
+          <Sparkles className="w-4 h-4 text-[#d4af37] shrink-0" />
           <span>{toastMessage}</span>
         </div>
       )}
@@ -1999,12 +2011,12 @@ export default function App() {
       )}
 
       {/* HEADER BAR */}
-      <header className="border-b border-[#d4af37]/30 bg-[#15152a]/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
+      <header className="border-b border-[#d4af37]/30 bg-[#15152a]/90 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
+        <div className="relative max-w-7xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
           
           {/* Logo */}
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Habit Quest Logo" className="w-8 h-8 object-contain rounded-md drop-shadow-md glow-active" onError={(e) => {
+          <div className="flex items-center gap-2 min-w-0">
+            <img src="/logo.png" alt="Habit Quest Logo" className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 object-contain rounded-md drop-shadow-md glow-active" onError={(e) => {
               // Fallback to the CSS sigil if image is missing
               e.currentTarget.style.display = 'none';
               if (e.currentTarget.nextElementSibling) {
@@ -2012,17 +2024,17 @@ export default function App() {
               }
             }} />
             <div className="w-3.5 h-3.5 bg-gradient-to-r from-[#d4af37] to-[#aa7c11] rounded-sm rotate-45 border border-[#d4af37]/30 shadow-md glow-active hidden" />
-            <h1 className="font-serif text-base sm:text-lg font-bold tracking-[0.12em] sm:tracking-[0.25em] text-[#d4af37] uppercase select-none cursor-default whitespace-nowrap">
+            <h1 className="max-[359px]:sr-only font-serif text-[15px] sm:text-lg font-bold tracking-[0.1em] sm:tracking-[0.25em] text-[#d4af37] uppercase select-none cursor-default whitespace-nowrap">
               HABITQUEST
             </h1>
           </div>
 
           {/* Controls & Sync */}
-          <div className="flex items-center gap-1.5 sm:gap-3.5">
+          <div className="flex items-center gap-1.5 sm:gap-3.5 shrink-0">
             {/* PWA Install */}
             <button
               onClick={handleInstallApp}
-              className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
+              className="hidden sm:block p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
               title="Install App"
             >
               <Download className="w-4 h-4" />
@@ -2031,7 +2043,7 @@ export default function App() {
             {/* Reminders */}
             <button
               onClick={() => setIsRemindersOpen(true)}
-              className={`p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
+              className={`hidden sm:block p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
                 reminders.enabled
                   ? 'border-[#d4af37]/40 text-[#d4af37]'
                   : 'border-white/10 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37]'
@@ -2044,7 +2056,7 @@ export default function App() {
             {/* Theme Toggle */}
             <button
               onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
+              className="hidden sm:block p-1.5 rounded-full border border-white/10 bg-[#1a1a2e]/50 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37] transition-all cursor-pointer"
               title="Toggle Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -2054,8 +2066,11 @@ export default function App() {
             <button
               onClick={() => {
                 setIsSyncOpen(!isSyncOpen);
+                setIsMoreOpen(false);
                 setEmailInput(syncEmail || '');
               }}
+              title={syncEmail ? `Sync active — ${syncEmail}` : 'Cloud sync'}
+              aria-label={syncEmail ? 'Sync active' : 'Cloud sync'}
               className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-full border text-[10px] font-mono uppercase tracking-wider cursor-pointer transition-all shrink-0 ${
                 syncEmail
                   ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-400'
@@ -2063,12 +2078,13 @@ export default function App() {
               }`}
             >
               <div className={`w-1.5 h-1.5 rounded-full ${syncEmail ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'}`} />
-              <span>{syncEmail ? 'SYNC ACTIVE' : 'SYNC'}</span>
+              <Cloud className="w-3.5 h-3.5 sm:hidden" aria-hidden />
+              <span className="hidden sm:inline">{syncEmail ? 'SYNC ACTIVE' : 'SYNC'}</span>
             </button>
 
             {/* Sync dropdown popover */}
             {isSyncOpen && (
-              <div className="absolute top-16 right-4 sm:right-20 bg-[#15152a] border border-[#d4af37]/30 rounded-lg p-4 w-72 shadow-2xl z-40 animate-fade-in">
+              <div className="absolute top-full mt-2 left-3 right-3 sm:left-auto sm:right-20 sm:w-72 bg-[#15152a] border border-[#d4af37]/30 rounded-xl sm:rounded-lg p-4 shadow-2xl z-40 animate-fade-in">
                 <h4 className="font-serif text-xs font-bold text-[#d4af37] uppercase mb-1">
                   Optional Cloud Sync
                 </h4>
@@ -2142,7 +2158,7 @@ export default function App() {
                       placeholder={syncMode === 'create' ? 'Character name' : 'Character ID (e.g. hero#4821)'}
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
-                      className={`w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none font-mono ${syncMode === 'create' ? '' : 'lowercase'}`}
+                      className={`w-full bg-[#1a1a2e] border border-white/10 focus:border-[#d4af37]/40 rounded py-1.5 px-2.5 text-xs text-slate-200 outline-none font-mono ${syncMode === 'create' ? '' : 'lowercase placeholder:normal-case'}`}
                     />
                     {syncMode === 'create' && (
                       <p className="font-sans text-[9px] text-slate-500 -mt-1">You'll be assigned an ID like <span className="font-mono text-slate-400">name#4821</span>.</p>
@@ -2214,15 +2230,51 @@ export default function App() {
               <span className="sm:hidden whitespace-nowrap">{formatShortDate(currentMockDate)}</span>
             </div>
 
+            {/* ⋯ More — phones only: install, reminders, theme, diagnostics */}
+            <button
+              onClick={() => { setIsMoreOpen((o) => !o); setIsSyncOpen(false); }}
+              className={`sm:hidden p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
+                isMoreOpen ? 'border-[#d4af37]/50 text-[#d4af37]' : 'border-white/10 text-[#e0e0e0]/70'
+              }`}
+              title="More"
+              aria-label="More options"
+              aria-expanded={isMoreOpen}
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {isMoreOpen && (
+              <>
+                <div className="sm:hidden fixed inset-0 z-30" onClick={() => setIsMoreOpen(false)} aria-hidden />
+                <div className="sm:hidden absolute top-full mt-2 right-3 w-56 bg-[#15152a] border border-[#d4af37]/30 rounded-xl shadow-2xl z-40 overflow-hidden animate-fade-in" role="menu">
+                  {[
+                    { icon: Download, label: 'Install app', onClick: handleInstallApp },
+                    { icon: Bell, label: reminders.enabled ? 'Reminders · on' : 'Reminders', onClick: () => setIsRemindersOpen(true), active: reminders.enabled },
+                    { icon: theme === 'dark' ? Sun : Moon, label: theme === 'dark' ? 'Light theme' : 'Dark theme', onClick: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
+                    { icon: FlaskConical, label: 'Diagnostics', onClick: () => setIsDiagOpen(true) },
+                  ].map(({ icon: Icon, label, onClick, active }) => (
+                    <button
+                      key={label}
+                      role="menuitem"
+                      onClick={() => { setIsMoreOpen(false); onClick(); }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left font-sans text-sm text-slate-200 hover:bg-white/5 active:bg-white/10 border-b border-white/5 last:border-b-0 cursor-pointer"
+                    >
+                      <Icon className={`w-4 h-4 ${active ? 'text-[#d4af37]' : 'text-slate-400'}`} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
           </div>
         </div>
       </header>
 
       {/* CORE LAYOUT */}
-      <main className="max-w-7xl mx-auto px-4 mt-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 mt-4 sm:mt-6">
         {/* Primary navigation — keeps each screen focused instead of stacking
             everything into one long scroll. */}
-        <div className="mb-6 flex justify-center">
+        <div className="mb-6 hidden lg:flex justify-center">
           <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#15152a] p-1">
             {([
               { key: 'character', label: 'Character' },
@@ -2253,7 +2305,7 @@ export default function App() {
           <div className={`contents lg:block lg:order-1 lg:space-y-6 ${mainTab === 'growth' ? 'lg:col-span-12' : 'lg:col-span-4'}`}>
 
             {/* CHARACTER CARD */}
-            <div id="character-panel" className={`order-1 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden ${show('character')}`}>
+            <div id="character-panel" className={`order-1 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative overflow-hidden ${show('character')}`}>
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   CHARACTER
@@ -2348,7 +2400,7 @@ export default function App() {
             </div>
 
             {/* LEDGER CARD */}
-            <div id="ledger-stats-panel" className={`order-4 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('quests')}`}>
+            <div id="ledger-stats-panel" className={`order-4 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('quests')}`}>
               <h3 className="font-mono text-[10px] text-slate-500 uppercase tracking-widest mb-4">
                 LEDGER
               </h3>
@@ -2420,7 +2472,7 @@ export default function App() {
             </div>
 
             {/* ACHIEVEMENTS CARD */}
-            <div id="achievements-panel" className={`order-5 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('character')}`}>
+            <div id="achievements-panel" className={`order-5 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('character')}`}>
               <div className="flex justify-between items-center mb-4">
                 <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">
                   ACHIEVEMENTS
@@ -2429,9 +2481,15 @@ export default function App() {
                   {unlockedAchievementsCount} / {ACHIEVEMENTS.length}
                 </span>
               </div>
+              <div className="h-1 bg-[#1a1a2e] rounded-full overflow-hidden mb-4 -mt-2">
+                <div
+                  className="h-full bg-gradient-to-r from-[#aa7c11] to-[#d4af37] rounded-full transition-all"
+                  style={{ width: `${Math.round((unlockedAchievementsCount / ACHIEVEMENTS.length) * 100)}%` }}
+                />
+              </div>
 
               {/* Achievements dynamic grid list */}
-              <div className="space-y-3.5">
+              <div className="space-y-2.5 lg:space-y-3.5">
                 {ACHIEVEMENTS.map((ach) => {
                   const isUnlocked = ach.check({
                     ledger,
@@ -2449,7 +2507,9 @@ export default function App() {
                   return (
                     <div
                       key={ach.id}
-                      className="relative flex items-center gap-3 bg-[#1a1a2e]/60 p-2 rounded border border-white/5 group"
+                      className={`relative items-center gap-3 p-2 rounded border group ${
+                        isUnlocked ? 'flex bg-[#1a1a2e]/60 border-white/5' : `${showLockedAch ? 'flex' : 'hidden lg:flex'} bg-[#0c0c1b]/40 border-white/[0.03]`
+                      }`}
                     >
                       {/* Roman Numeral / Custom Icon Circle */}
                       <div
@@ -2459,19 +2519,19 @@ export default function App() {
                             : 'border-white/5 bg-[#050510]/50 text-slate-600'
                         }`}
                       >
-                        {ach.numIcon || 'I'}
+                        {isUnlocked ? ach.numIcon || 'I' : <Lock className="w-3 h-3" aria-label="Locked" />}
                       </div>
 
                       {/* Title & Criteria */}
                       <div className="flex-1 text-left">
                         <h4
                           className={`font-sans text-[11px] font-semibold transition-colors duration-200 ${
-                            isUnlocked ? 'text-slate-200' : 'text-slate-500 line-through'
+                            isUnlocked ? 'text-slate-200' : 'text-slate-500'
                           }`}
                         >
                           {ach.title}
                         </h4>
-                        <p className="font-sans text-[9px] text-slate-500 leading-normal">
+                        <p className={`font-sans text-[9px] leading-normal ${isUnlocked ? 'text-slate-500' : 'text-slate-600'}`}>
                           {ach.description}
                         </p>
                       </div>
@@ -2484,6 +2544,15 @@ export default function App() {
                   );
                 })}
               </div>
+              {unlockedAchievementsCount < ACHIEVEMENTS.length && (
+                <button
+                  type="button"
+                  onClick={() => setShowLockedAch((v) => !v)}
+                  className="lg:hidden mt-3 w-full border border-white/5 hover:border-[#d4af37]/30 rounded-lg py-2.5 font-mono text-[9px] uppercase tracking-wider text-slate-400 hover:text-[#d4af37] transition-colors cursor-pointer"
+                >
+                  {showLockedAch ? 'Hide locked' : `Show ${ACHIEVEMENTS.length - unlockedAchievementsCount} locked`}
+                </button>
+              )}
             </div>
 
             {/* DEBUFFS PANEL — addiction interruption */}
@@ -2527,17 +2596,17 @@ export default function App() {
           <div className={`${mainTab === 'growth' ? 'hidden' : 'contents lg:block'} lg:order-2 lg:col-span-8 lg:space-y-6`}>
 
             {/* QUEST LOG CARD */}
-            <div id="quest-log-card" className={`${dayPhase === 'day' ? 'order-3' : 'order-first'} lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('quests')}`}>
-              <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
-                <div>
-                  <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
+            <div id="quest-log-card" className={`${dayPhase === 'day' ? 'order-3' : 'order-first'} lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] relative ${show('quests')}`}>
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center mb-5 sm:mb-6 border-b border-white/5 pb-3">
+                <div className="min-w-0">
+                  <h2 className="font-serif text-base sm:text-lg font-bold text-[#d4af37] uppercase tracking-widest whitespace-nowrap">
                     {questViewMode === 'list' ? 'QUEST LOG' : questViewMode === 'paths' ? 'MY PATHS' : 'TASK SKILL TREE'}
                   </h2>
                   <p className="font-mono text-[9px] text-slate-500 uppercase mt-0.5">
                     {questViewMode === 'list' ? 'Your Current Habits and Milestones' : questViewMode === 'paths' ? 'Skill Trees Forged by Your Hand' : 'Path of Progression'}
                   </p>
                 </div>
-                <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap sm:justify-end">
                   {(buildingCount > 0 || automaticCount > 0) && (
                     <div
                       className={`font-mono text-[10px] py-1.5 px-3 rounded border ${
@@ -2557,26 +2626,33 @@ export default function App() {
                       )}
                     </div>
                   )}
-                  <div className="flex items-center bg-[#1a1a2e] rounded border border-white/5 p-1">
+                  {/* View switch — full-width segmented control on phones */}
+                  <div role="tablist" aria-label="Quest view" className="order-first sm:order-none w-full sm:w-auto grid grid-cols-3 sm:flex items-center bg-[#1a1a2e] rounded-lg sm:rounded border border-white/5 p-1">
                     <button
+                      role="tab"
+                      aria-selected={questViewMode === 'tree'}
                       onClick={() => setQuestViewMode('tree')}
-                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 sm:py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
                         questViewMode === 'tree' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
                       TREE
                     </button>
                     <button
+                      role="tab"
+                      aria-selected={questViewMode === 'paths'}
                       onClick={() => setQuestViewMode('paths')}
-                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 sm:py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
                         questViewMode === 'paths' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
                       PATHS
                     </button>
                     <button
+                      role="tab"
+                      aria-selected={questViewMode === 'list'}
                       onClick={() => setQuestViewMode('list')}
-                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                      className={`px-3 py-1.5 sm:py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
                         questViewMode === 'list' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
                       }`}
                     >
@@ -2681,7 +2757,7 @@ export default function App() {
                       return (
                         <div
                           key={q.id}
-                          className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                          className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             completedToday
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65'
                               : 'bg-[#1a1a2e] hover:bg-[#1e1e36] border-white/5 hover:border-[#d4af37]/30'
@@ -2735,17 +2811,14 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             {renderFrictionSection(q)}
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
-                              <span>·</span>
-                              <span>{baseChanceXp} XP</span>
-                              <span>·</span>
-                              <span>{q.difficulty}</span>
+                              <span className="meta-sep">{baseChanceXp} XP</span>
+                              <span className="meta-sep">{q.difficulty}</span>
                               {streak > 0 && (
                                 <>
-                                  <span>·</span>
-                                  <span className="text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
+                                  <span className="meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
                                     <Flame className="w-2.5 h-2.5" /> {streak} {streak === 1 ? 'day' : 'days'}
                                   </span>
                                 </>
@@ -2753,8 +2826,8 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: edit + delete actions */}
-                          <div className="flex items-center">
+                          {/* Right: edit + delete actions — stacked on phones to give the text room */}
+                          <div className="flex flex-col sm:flex-row items-center -mr-1 sm:mr-0 shrink-0">
                             <button
                               onClick={() => setEditingQuest(q)}
                               className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
@@ -2804,7 +2877,7 @@ export default function App() {
                       return (
                         <div
                           key={q.id}
-                          className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                          className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             satisfiedThisWeek
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65 font-light'
                               : 'bg-[#1a1a2e] hover:bg-[#1e1e36] border-white/5 hover:border-[#d4af37]/30'
@@ -2860,21 +2933,17 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             {renderFrictionSection(q)}
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
-                              <span>·</span>
-                              <span>{baseChanceXp} XP</span>
-                              <span>·</span>
-                              <span>{q.difficulty}</span>
-                              <span>·</span>
-                              <span className={currentWeekCount >= q.target ? 'text-emerald-400 font-bold' : 'text-slate-400'}>
+                              <span className="meta-sep">{baseChanceXp} XP</span>
+                              <span className="meta-sep">{q.difficulty}</span>
+                              <span className={`meta-sep ${currentWeekCount >= q.target ? 'text-emerald-400 font-bold' : 'text-slate-400'}`}>
                                 {currentWeekCount} of {q.target} this week
                               </span>
                               {streak > 0 && (
                                 <>
-                                  <span>·</span>
-                                  <span className="text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
+                                  <span className="meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
                                     <Flame className="w-2.5 h-2.5" /> {streak} {streak === 1 ? 'week' : 'weeks'}
                                   </span>
                                 </>
@@ -2882,8 +2951,8 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: edit + delete actions */}
-                          <div className="flex items-center">
+                          {/* Right: edit + delete actions — stacked on phones to give the text room */}
+                          <div className="flex flex-col sm:flex-row items-center -mr-1 sm:mr-0 shrink-0">
                             <button
                               onClick={() => setEditingQuest(q)}
                               className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
@@ -2929,7 +2998,7 @@ export default function App() {
                       return (
                         <div
                           key={q.id}
-                          className={`flex items-center gap-4 p-4 rounded-lg border transition-all ${
+                          className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             cleared
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65 font-light'
                               : 'bg-[#1a1a2e] hover:bg-[#1e1e36] border-white/5 hover:border-[#d4af37]/30'
@@ -2966,17 +3035,14 @@ export default function App() {
                             {renderIntention(q)}
                             {renderUnlockBar(q)}
                             {renderFrictionSection(q)}
-                            <div className="flex flex-wrap items-center gap-1.5 mt-1 font-mono text-[9px] text-slate-500 uppercase">
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 mt-1 font-mono text-[9px] text-slate-500 uppercase">
                               {renderAutoState(q)}
                               <span className="font-bold" style={{ color: config.color }}>{config.name}</span>
-                              <span>·</span>
-                              <span>{baseChanceXp} XP</span>
-                              <span>·</span>
-                              <span>{q.difficulty}</span>
+                              <span className="meta-sep">{baseChanceXp} XP</span>
+                              <span className="meta-sep">{q.difficulty}</span>
                               {cleared && (
                                 <>
-                                  <span>·</span>
-                                  <span className="text-[#d4af37]/80 font-bold lowercase">
+                                  <span className="meta-sep text-[#d4af37]/80 font-bold lowercase">
                                     ◆ cleared
                                   </span>
                                 </>
@@ -2984,8 +3050,8 @@ export default function App() {
                             </div>
                           </div>
 
-                          {/* Right: edit + delete actions */}
-                          <div className="flex items-center">
+                          {/* Right: edit + delete actions — stacked on phones to give the text room */}
+                          <div className="flex flex-col sm:flex-row items-center -mr-1 sm:mr-0 shrink-0">
                             <button
                               onClick={() => setEditingQuest(q)}
                               className="p-1.5 text-slate-600 hover:text-[#d4af37] transition-colors cursor-pointer"
@@ -3021,7 +3087,7 @@ export default function App() {
             </div>
 
             {/* BALANCE CARD (Radar Chart and effort progress bars) */}
-            <div id="balance-panel" className={`order-2 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('character')}`}>
+            <div id="balance-panel" className={`order-2 lg:order-none bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)] ${show('character')}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h3 className="font-serif text-sm tracking-widest text-[#d4af37] uppercase">
@@ -3156,7 +3222,7 @@ export default function App() {
       {isEditingCharacter && (
         <div className="fixed inset-0 bg-[#050510]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
           {/* MAIN CARD */}
-          <div className="w-full max-w-xl bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
+          <div className="w-full max-w-xl bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-5 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
             <form onSubmit={handleSaveCharacter} className="space-y-6">
               <div className="text-center mb-6">
                 <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
@@ -3262,7 +3328,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => setEditClass('bard')}
-                    className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-center ${
+                    className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-left sm:text-center ${
                       editClass === 'bard'
                         ? 'border-pink-500/50 bg-pink-500/10 text-pink-400'
                         : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
@@ -3333,16 +3399,70 @@ export default function App() {
         </div>
       )}
 
-      {/* DEVELOPER SANCTUM DIAGNOSTICS & CONTROL PANEL */}
-      <DiagnosticsPanel
-        currentMockDate={currentMockDate}
-        onSetMockDate={(d) => setCurrentMockDate(d)}
-        onResetToMockup={loadMockupState}
-        onHardReset={handleHardReset}
-        onAddFreeXp={handleAddFreeXp}
-        onAdvanceDay={handleAdvanceDay}
-        onAdvanceWeek={handleAdvanceWeek}
-      />
+      {/* DEVELOPER SANCTUM DIAGNOSTICS & CONTROL PANEL — desktop: the flask
+          button as before; phones: opened from the ⋯ menu as a sheet so no
+          floating button sits on top of content. */}
+      <div className="hidden lg:block">
+        <DiagnosticsPanel
+          currentMockDate={currentMockDate}
+          onSetMockDate={(d) => setCurrentMockDate(d)}
+          onResetToMockup={loadMockupState}
+          onHardReset={handleHardReset}
+          onAddFreeXp={handleAddFreeXp}
+          onAdvanceDay={handleAdvanceDay}
+          onAdvanceWeek={handleAdvanceWeek}
+        />
+      </div>
+      {isDiagOpen && (
+        <div className="lg:hidden fixed right-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50">
+          <DiagnosticsPanel
+            open
+            onOpenChange={setIsDiagOpen}
+            hideTrigger
+            currentMockDate={currentMockDate}
+            onSetMockDate={(d) => setCurrentMockDate(d)}
+            onResetToMockup={loadMockupState}
+            onHardReset={handleHardReset}
+            onAddFreeXp={handleAddFreeXp}
+            onAdvanceDay={handleAdvanceDay}
+            onAdvanceWeek={handleAdvanceWeek}
+          />
+        </div>
+      )}
+
+      {/* PHONE TAB BAR — native-style primary navigation, thumb-reachable and
+          always visible. The desktop keeps the pill at the top of the page. */}
+      <nav
+        aria-label="Primary"
+        className="lg:hidden fixed bottom-0 inset-x-0 z-40 border-t border-[#d4af37]/20 bg-[#0d0d1f]/95 backdrop-blur-md pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="grid grid-cols-3 max-w-md mx-auto">
+          {([
+            { key: 'character', label: 'Character', icon: UserRound },
+            { key: 'quests', label: 'Quests', icon: Swords },
+            { key: 'growth', label: 'Growth', icon: Sprout },
+          ] as const).map(({ key, label, icon: Icon }) => {
+            const active = mainTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => {
+                  if (active) window.scrollTo({ top: 0, behavior: 'smooth' });
+                  else { setMainTab(key); window.scrollTo({ top: 0 }); }
+                }}
+                aria-current={active ? 'page' : undefined}
+                className={`relative flex flex-col items-center justify-center gap-1 pt-2.5 pb-2 min-h-[56px] transition-colors cursor-pointer ${
+                  active ? 'text-[#d4af37]' : 'text-slate-500 active:text-slate-300'
+                }`}
+              >
+                <span className={`absolute top-0 h-0.5 w-10 rounded-full transition-all ${active ? 'bg-[#d4af37]' : 'bg-transparent'}`} />
+                <Icon className="w-5 h-5" strokeWidth={active ? 2.2 : 1.8} />
+                <span className="font-mono text-[9px] font-bold uppercase tracking-wider">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </nav>
 
     </div>
   );

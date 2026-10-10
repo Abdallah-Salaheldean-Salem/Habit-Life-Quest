@@ -572,7 +572,7 @@ export default function DebuffPanel(props: DebuffPanelProps) {
   };
 
   return (
-    <div id="debuffs-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+    <div id="debuffs-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-5 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
       <div className="flex justify-between items-center mb-1">
         <div>
           <span className="font-mono text-[10px] text-slate-500 uppercase tracking-widest">Debuffs</span>
