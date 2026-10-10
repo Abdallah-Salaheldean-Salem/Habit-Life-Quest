@@ -4,9 +4,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { importPaths, normalizeNode, describeImport } from './pathImport';
+import { importPaths, normalizeNode, describeImport, parsePathFile, repairMojibake, PATH_FORMAT } from './pathImport';
 import { buildPathImportGuide, buildPathTemplateExample } from './pathTemplate';
-import { MAX_PATHS, blankPath, newPathNode, validatePath } from './paths';
+import { MAX_PATHS, blankPath, newPathNode, validatePath, pathFrontier } from './paths';
 import { CustomPath } from '../types';
 
 const NOW = '2026-10-10T00:00:00.000Z';
@@ -15,8 +15,8 @@ const mine = (name: string): CustomPath => blankPath(NOW, { name, nodes: [newPat
 describe('importPaths', () => {
   it('imports the template example cleanly', () => {
     const { paths, summary } = importPaths([], buildPathTemplateExample(), NOW);
-    expect(summary).toMatchObject({ added: 1, skipped: 0, invalid: 0, overLimit: 0, nodesDropped: 0 });
-    expect(paths[0].name).toBe('The Engineer’s Ascent');
+    expect(summary).toMatchObject({ added: 1, skipped: 0, invalid: 0, overLimit: 0, nodesDropped: 0, newerFormat: false });
+    expect(paths[0].name).toBe("The Engineer's Ascent");
     expect(paths[0].nodes).toHaveLength(5);
     expect(validatePath(paths[0])).toBeNull();
   });
@@ -52,11 +52,40 @@ describe('importPaths', () => {
     expect(summary).toMatchObject({ added: 1, overLimit: 1 });
   });
 
-  it('drops untitled nodes and nodes beyond 4 in a tier', () => {
+  it('drops untitled nodes and keeps the FIRST 4 per tier, naming the dropped ones', () => {
     const nodes = [{ title: '' }, ...Array.from({ length: 6 }, (_, i) => ({ title: `n${i}`, tier: 1 }))];
     const { paths, summary } = importPaths([], { paths: [{ name: 'Crowded', nodes }] }, NOW);
-    expect(paths[0].nodes).toHaveLength(4);
+    expect(paths[0].nodes.map((n) => n.title)).toEqual(['n0', 'n1', 'n2', 'n3']);
     expect(summary.nodesDropped).toBe(3);
+    expect(summary.droppedTitles).toEqual(['n4', 'n5']);
+    expect(describeImport(summary)).toMatch(/3 nodes dropped \(“n4”, “n5” — only the first 4 per tier are kept\)/);
+  });
+
+  it('accepts the current format, warns on a newer one, rejects a foreign one', () => {
+    const one = [{ name: 'F', nodes: [{ title: 'a', tier: 1 }] }];
+    expect(importPaths([], { format: PATH_FORMAT, paths: one }, NOW).summary.newerFormat).toBe(false);
+    const newer = importPaths([], { format: 'habit-quest-paths/2', paths: one }, NOW).summary;
+    expect(newer.added).toBe(1);
+    expect(newer.newerFormat).toBe(true);
+    expect(describeImport(newer)).toMatch(/newer app version/);
+    expect(() => importPaths([], { format: 'operation-malcolm-tasks/1', paths: one }, NOW)).toThrow(/different format/);
+  });
+
+  it('repairs Mac-Roman mojibake in imported text', () => {
+    const data = { paths: [{ name: 'The Engineer‚Äôs Ascent', purpose: 'Learn ‚Äî then ship ‚Üí repeat', nodes: [{ title: 'Read ¬∑ write', tier: 1 }] }] };
+    const p = importPaths([], data, NOW).paths[0];
+    expect(p.name).toBe('The Engineer’s Ascent');
+    expect(p.purpose).toBe('Learn — then ship → repeat');
+    expect(p.nodes[0].title).toBe('Read · write');
+    expect(repairMojibake('Plain text, untouched.')).toBe('Plain text, untouched.');
+    expect(repairMojibake('Ahmed — أحمد')).toBe('Ahmed — أحمد');
+  });
+
+  it('a skipped tier still opens: tiers 1, 2, 3, 6 → mastering tier 3 opens the capstone', () => {
+    const p = importPaths([], buildPathTemplateExample(), NOW).paths[0]; // tiers 1, 2, 3, 6
+    const id = (tier: number) => p.nodes.find((n) => n.tier === tier)!.id;
+    expect(pathFrontier(p, new Set([id(1), id(2)]))).toBe(3);
+    expect(pathFrontier(p, new Set([id(1), id(2), id(3)]))).toBe(6);
   });
 
   it('always mints fresh ids (a file can’t collide with or resurrect records)', () => {
@@ -64,6 +93,16 @@ describe('importPaths', () => {
     const p = importPaths([], data, NOW).paths[0];
     expect(p.id).not.toBe('path_evil');
     expect(p.nodes[0].id).not.toBe('node_x');
+  });
+});
+
+describe('parsePathFile', () => {
+  it('parses plain JSON, a byte-order mark, and an AI reply wrapped in a code fence', () => {
+    const json = '{"paths":[]}';
+    expect(parsePathFile(json)).toEqual({ paths: [] });
+    expect(parsePathFile('\uFEFF' + json)).toEqual({ paths: [] });
+    expect(parsePathFile('```json\n' + json + '\n```')).toEqual({ paths: [] });
+    expect(() => parsePathFile('{ not json')).toThrow(SyntaxError);
   });
 });
 
@@ -82,7 +121,9 @@ describe('normalizeNode', () => {
 
 describe('describeImport', () => {
   it('summarises in one line', () => {
-    expect(describeImport({ added: 2, skipped: 1, invalid: 0, overLimit: 0, nodesDropped: 0 })).toBe('2 paths imported · 1 already here (skipped)');
+    expect(describeImport({ added: 2, skipped: 1, invalid: 0, overLimit: 0, nodesDropped: 0, droppedTitles: [], newerFormat: false })).toBe(
+      '2 paths imported · 1 already here (skipped)',
+    );
   });
 });
 
@@ -90,11 +131,27 @@ describe('buildPathImportGuide', () => {
   const md = buildPathImportGuide([mine('Quran Hifz')], 'Habit Quest', 'scholar');
 
   it('lists the app’s real values and the user’s paths', () => {
-    expect(md).toContain('# Path Import — Template & Guide');
+    expect(md).toContain('# Path Import - Template & Guide');
     expect(md).toContain('`body`');
     expect(md).toContain('Capstone');
     expect(md).toContain('`Quran Hifz`');
     expect(md).toContain('Your class is **Scholar**');
+  });
+
+  it('is plain ASCII apart from user-entered names (no mojibake if opened as Mac Roman)', () => {
+    const own = buildPathImportGuide([], 'Habit Quest', 'scholar');
+    const bad = [...own].filter((c) => c.charCodeAt(0) > 126);
+    expect(bad).toEqual([]);
+  });
+
+  it('states the real rules: skipped tiers, fixed mastery, first 4 kept, Unlock is display-only, format', () => {
+    expect(md).toMatch(/nearest lower tier that has nodes; empty tiers are skipped/);
+    expect(md).toMatch(/30 different days/);
+    expect(md).toMatch(/4 different weeks/);
+    expect(md).toMatch(/first 4 in a tier/);
+    expect(md).toMatch(/the app does not read it/);
+    expect(md).toContain(`"format": "${PATH_FORMAT}"`);
+    expect(md).not.toMatch(/"stat"` must be one of/); // optional fields are described as optional
   });
 
   it('ends with a JSON template that itself imports cleanly', () => {

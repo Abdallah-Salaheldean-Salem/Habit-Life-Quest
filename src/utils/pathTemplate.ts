@@ -9,22 +9,45 @@
 // It is meant to be handed to an AI assistant together with the user's goal,
 // so the AI can produce a JSON file that imports cleanly. The app's real
 // values (stats, tiers, limits, existing path names) are embedded.
+//
+// The guide's own text is plain ASCII on purpose: a UTF-8 file opened as Mac
+// Roman (TextEdit, some viewers) turns typographic punctuation into mojibake
+// ("’" -> "‚Äô"), which then gets copied into the AI's reply. The download
+// also carries a UTF-8 byte-order mark so editors detect the encoding.
 // ---------------------------------------------------------
 
 import { CustomPath, STATS, CLASSES, UserClass } from '../types';
-import { TIER_LABEL, TIER_NAME } from '../data/lifeTree';
+import { TIER_NAME } from '../data/lifeTree';
 import { MAX_NODES_PER_TIER, MAX_PATHS, MAX_TIERS, NAME_MAX, TITLE_MAX } from './paths';
-import { STAT_KEYS } from './pathImport';
+import { PATH_FORMAT, STAT_KEYS } from './pathImport';
 
 const FENCE = '```';
 const cell = (s: string) => String(s).replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
+// Typographic punctuation -> ASCII, for any app text embedded in the guide
+// (stat descriptions etc.). User-entered names are left as typed.
+const ASCII: [RegExp, string][] = [
+  [/[—–]/g, '-'],
+  [/[’‘]/g, "'"],
+  [/[“”]/g, '"'],
+  [/…/g, '...'],
+  [/→/g, '->'],
+  [/·/g, ','],
+  [/★/g, '*'],
+  [/×/g, 'x'],
+];
+const ascii = (s: string) => ASCII.reduce((acc, [re, to]) => acc.replace(re, to), s);
+
+/** Tier labels for the guide, ASCII only (the app shows VI as a star). */
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI'];
+
 /** A small, valid import file showing every field. */
 export function buildPathTemplateExample() {
   return {
+    format: PATH_FORMAT,
     paths: [
       {
-        name: 'The Engineer’s Ascent',
+        name: "The Engineer's Ascent",
         stat: 'mind',
         purpose: 'Become a strong embedded engineer within two years.',
         nodes: [
@@ -48,7 +71,7 @@ export function buildPathTemplateExample() {
             type: 'weekly',
             difficulty: 'normal',
             target: 1,
-            description: 'Something small that runs on real hardware, pushed to GitHub. Unlock: 8 weeks.',
+            description: 'Something small that runs on real hardware, pushed to GitHub. Unlock: 4 weeks.',
           },
           {
             tier: 3,
@@ -76,35 +99,36 @@ export function buildPathImportGuide(existing: CustomPath[], appName: string, us
   const room = Math.max(0, MAX_PATHS - existing.length);
 
   const L: string[] = [];
-  L.push('# Path Import — Template & Guide');
+  L.push('# Path Import - Template & Guide');
   L.push('');
-  L.push(`**App:** ${appName}  `);
+  L.push(`**App:** ${ascii(appName)}  `);
+  L.push(`**Format:** \`${PATH_FORMAT}\`  `);
   L.push(`**Generated:** ${today}`);
   L.push('');
   L.push(
-    "This file explains how to write a JSON file that the app's **Import** button (Quests → PATHS) accepts, and ends with a ready-to-fill template. It is written so you can hand it straight to an AI assistant.",
+    "This file explains how to write a JSON file that the app's **Import** button (Quests > PATHS) accepts, and ends with a ready-to-fill template. It is written so you can hand it straight to an AI assistant.",
   );
   L.push('');
 
   L.push('## 1. How to use');
   L.push('');
-  L.push('1. Give this whole file to an AI assistant (ChatGPT, Claude, Gemini, …) together with your goal — a degree, a skill, a comeback, a project.');
+  L.push('1. Give this whole file to an AI assistant (ChatGPT, Claude, Gemini, ...) together with your goal - a degree, a skill, a comeback, a project.');
   L.push('2. Paste the prompt from section 2 and describe your goal underneath it.');
-  L.push('3. Save the AI’s reply as a file ending in **`.json`** (for example `my-path.json`).');
-  L.push('4. In the app, open **Quests → PATHS → Import** and choose the file.');
-  L.push('5. A banner confirms how many paths were imported. Importing the same file again is safe — a path whose name you already have is skipped.');
+  L.push("3. Save the AI's reply as a file ending in **`.json`** (for example `my-path.json`).");
+  L.push('4. In the app, open **Quests > PATHS > Import** and choose the file.');
+  L.push('5. A banner confirms how many paths were imported. Importing the same file again is safe - a path whose name you already have is skipped.');
   L.push('');
 
   L.push('## 2. Prompt to paste into the AI');
   L.push('');
   L.push(FENCE + 'text');
   L.push('Turn my goal below into a skill-tree "path" for my habit RPG, as a JSON import file.');
-  L.push('Follow sections 3–7 of the attached "Path Import — Template & Guide" exactly, and use');
+  L.push('Follow sections 3-7 of the attached "Path Import - Template & Guide" exactly, and use');
   L.push('the template in section 9 as the shape of the output.');
-  L.push('Design it like a game skill tree: Tier I is small daily habits I can start today;');
-  L.push('each tier is earned by mastering the one below; Tier VI (★) is the capstone.');
-  L.push('Reply with ONLY the JSON — no explanation and no markdown code fences — so I can');
-  L.push('save your reply directly as a .json file.');
+  L.push('Design it like a game skill tree: Tier 1 is small daily habits I can start today;');
+  L.push('each tier opens by mastering a node in the tier below; Tier 6 is the capstone.');
+  L.push('Reply with ONLY the JSON - no explanation and no markdown code fences - so I can');
+  L.push('save your reply directly as a .json file. Use plain straight quotes and apostrophes.');
   L.push('');
   L.push('My goal:');
   L.push('<describe your goal here>');
@@ -113,51 +137,66 @@ export function buildPathImportGuide(existing: CustomPath[], appName: string, us
 
   L.push('## 3. Output rules (for the AI)');
   L.push('');
-  L.push('- Output a single, valid JSON object — UTF-8, no comments, no trailing commas, no text before or after it.');
-  L.push('- Top-level key: `"paths"` — an array of path objects (one path is fine).');
-  L.push(`- Every path needs a \`"name"\` (max ${NAME_MAX} characters) and at least one node in **tier 1**.`);
-  L.push(`- Every node needs a \`"title"\` (max ${TITLE_MAX} characters) and a \`"tier"\` from 1 to ${MAX_TIERS}.`);
-  L.push(`- At most **${MAX_NODES_PER_TIER} nodes per tier**. Tiers may be skipped (e.g. 1, 2, 3, then 6).`);
-  L.push(`- \`"stat"\` must be one of: ${STAT_KEYS.map((s) => `\`"${s}"\``).join(', ')}.`);
-  L.push('- `"type"` must be `"daily"`, `"weekly"` or `"milestone"`; `"difficulty"` must be `"easy"`, `"normal"` or `"hard"`.');
-  L.push('- For weekly nodes, `"target"` is how many times per week (1–7). Daily and milestone nodes ignore it.');
-  L.push('- Put the **why** and the **unlock criterion** in `"description"` (max 280 characters), ending with e.g. `Unlock: 30 days.`');
-  L.push('- Do not include `"id"` fields — the app creates its own.');
+  L.push('- Output a single, valid JSON object - UTF-8, no comments, no trailing commas, no text before or after it.');
+  L.push(`- Top-level keys: \`"format": "${PATH_FORMAT}"\` (recommended) and \`"paths"\` (required) - an array of path objects (one path is fine).`);
+  L.push(`- **Required** on every path: \`"name"\` (max ${NAME_MAX} characters) and \`"nodes"\` with at least one node in **tier 1**.`);
+  L.push(`- **Required** on every node: \`"title"\` (max ${TITLE_MAX} characters) and \`"tier"\` (a whole number from 1 to ${MAX_TIERS}).`);
+  L.push(
+    `- At most **${MAX_NODES_PER_TIER} nodes per tier**. If a tier has more, only the first ${MAX_NODES_PER_TIER} in the order written are kept and the rest are dropped.`,
+  );
+  L.push(
+    '- Tiers may be skipped (e.g. 1, 2, 3, then 6). Empty tiers are ignored: after the last tier you filled, the next tier that has nodes is the one that opens (see section 4).',
+  );
+  L.push('- **Optional** fields - if you include them, they must use these values; if you leave them out, the default is used:');
+  L.push(`  - \`"stat"\`: ${STAT_KEYS.map((s) => `\`"${s}"\``).join(', ')} (default \`"mind"\`)`);
+  L.push('  - `"type"`: `"daily"`, `"weekly"` or `"milestone"` (default `"daily"`)');
+  L.push('  - `"difficulty"`: `"easy"`, `"normal"` or `"hard"` (default `"normal"`)');
+  L.push('  - `"target"`: weekly nodes only - times per week, 1 to 7 (default 2). Daily and milestone nodes ignore it.');
+  L.push('  - `"description"` (max 280 characters) and, on a path, `"purpose"` (max 120 characters).');
+  L.push('- Put the **why** in `"description"`. You may end it with a note like `Unlock: 30 days.` - this is shown to the user as guidance only; the app does not read it (mastery rules are fixed, see section 4).');
+  L.push("- Use plain ASCII punctuation (straight quotes `\"` and `'`, `-` instead of dashes).");
+  L.push('- Do not include `"id"` fields - the app creates its own.');
   L.push('');
 
-  L.push('## 4. Values in this app');
+  L.push('## 4. Values and rules in this app');
   L.push('');
-  L.push('**Stats** — sets the path’s colour and which class earns bonus XP on its quests:');
+  L.push("**Stats** - set the path's colour and which class earns bonus XP on its quests:");
   L.push('');
   L.push('| `stat` | Shown as | Covers | Bonus-XP class |');
   L.push('|---|---|---|---|');
   STAT_KEYS.forEach((s) => {
     const cls = (Object.keys(CLASSES) as UserClass[]).find((c) => CLASSES[c].bonusStat === s);
-    L.push(`| \`${s}\` | ${cell(STATS[s].name)} | ${cell(STATS[s].covers)} | ${cls ? cell(CLASSES[cls].name) : '—'} |`);
+    L.push(`| \`${s}\` | ${cell(STATS[s].name)} | ${cell(ascii(STATS[s].covers))} | ${cls ? cell(CLASSES[cls].name) : '-'} |`);
   });
   L.push('');
   if (userClass) {
     L.push(`Your class is **${CLASSES[userClass].name}**, so paths with \`"stat": "${CLASSES[userClass].bonusStat}"\` earn you bonus XP.`);
     L.push('');
   }
-  L.push('**Tiers** — a tier reveals once any node in the tier below it is mastered:');
+  L.push('**Tiers** - Tier 1 is always open. A higher tier opens once you master any one node in the nearest lower tier that has nodes; empty tiers are skipped. Example: a path with tiers 1, 2, 3 and 6 opens Tier 6 as soon as a Tier 3 node is mastered.');
   L.push('');
   L.push('| `tier` | Label | Name | Design intent |');
   L.push('|---|---|---|---|');
   const intent: Record<number, string> = {
     1: 'Small daily habits you can start today; always open',
-    2: 'Consistency — weekly rhythms that build on Tier I',
-    3: 'Capability — first real results',
-    4: 'Compounding — bigger, longer projects',
-    5: 'Leverage — teaching, public proof, multipliers',
-    6: 'Capstone — the identity the whole path builds toward',
+    2: 'Consistency - weekly rhythms that build on Tier 1',
+    3: 'Capability - first real results',
+    4: 'Compounding - bigger, longer projects',
+    5: 'Leverage - teaching, public proof, multipliers',
+    6: 'Capstone - the identity the whole path builds toward',
   };
-  for (let t = 1; t <= MAX_TIERS; t++) L.push(`| \`${t}\` | ${TIER_LABEL[t]} | ${TIER_NAME[t]} | ${intent[t]} |`);
+  for (let t = 1; t <= MAX_TIERS; t++) L.push(`| \`${t}\` | ${ROMAN[t]}${t === MAX_TIERS ? ' (capstone)' : ''} | ${TIER_NAME[t]} | ${intent[t]} |`);
   L.push('');
-  L.push('**Mastery** — a daily node unlocks after about 30 consistent days, a weekly node after its target is held for several weeks, and a milestone when it is done once.');
+  L.push('**Mastery** - fixed rules, the same for every path (the `Unlock:` text in a description does not change them):');
+  L.push('');
+  L.push('| `type` | Mastered when |');
+  L.push('|---|---|');
+  L.push('| `daily` | completed on **30 different days** (they do not have to be in a row) |');
+  L.push('| `weekly` | its weekly `target` is met in **4 different weeks** |');
+  L.push('| `milestone` | completed **once** |');
   L.push('');
   L.push(
-    `**Your paths:** ${existing.length ? existing.map((p) => `\`${cell(p.name)}\``).join(', ') : 'none yet'} — ${existing.length}/${MAX_PATHS} used, room for ${room} more. A path with one of these names is skipped on import, so give new paths fresh names.`,
+    `**Your paths:** ${existing.length ? existing.map((p) => `\`${cell(p.name)}\``).join(', ') : 'none yet'} - ${existing.length}/${MAX_PATHS} used, room for ${room} more. A path with one of these names is skipped on import, so give new paths fresh names.`,
   );
   L.push('');
 
@@ -167,9 +206,9 @@ export function buildPathImportGuide(existing: CustomPath[], appName: string, us
   L.push('|---|---|---|---|');
   const pf: [string, string, string, string][] = [
     ['name', 'string', 'yes', `Path name, max ${NAME_MAX} characters`],
-    ['stat', 'string', 'no', `${STAT_KEYS.map((s) => `\`${s}\``).join(' · ')} (default \`mind\`)`],
+    ['nodes', 'array', 'yes', 'The path nodes (section 6); at least one in tier 1'],
+    ['stat', 'string', 'no', `${STAT_KEYS.map((s) => `\`${s}\``).join(', ')} (default \`mind\`)`],
     ['purpose', 'string', 'no', 'One line on what the path builds toward (max 120 characters)'],
-    ['nodes', 'array', 'yes', 'The path’s nodes (section 6); at least one in tier 1'],
   ];
   pf.forEach(([a, b, c, d]) => L.push(`| \`${a}\` | ${b} | ${c} | ${d} |`));
   L.push('');
@@ -180,32 +219,35 @@ export function buildPathImportGuide(existing: CustomPath[], appName: string, us
   L.push('|---|---|---|---|');
   const nf: [string, string, string, string][] = [
     ['title', 'string', 'yes', `Short action, max ${TITLE_MAX} characters, e.g. "Read 10 pages"`],
-    ['tier', 'number 1–6', 'yes', 'Which tier the node sits in (default 1)'],
-    ['type', 'string', 'no', '`daily` · `weekly` · `milestone` (default `daily`)'],
-    ['difficulty', 'string', 'no', '`easy` · `normal` · `hard` (default `normal`) — sets the XP'],
-    ['target', 'number 1–7', 'no', 'Weekly nodes only: times per week (default 2)'],
-    ['description', 'string', 'no', 'Why it matters + the unlock criterion, max 280 characters'],
+    ['tier', 'number 1-6', 'yes', 'Which tier the node sits in (out-of-range values are clamped to 1-6)'],
+    ['type', 'string', 'no', '`daily`, `weekly` or `milestone` (default `daily`) - also sets the mastery rule'],
+    ['difficulty', 'string', 'no', '`easy`, `normal` or `hard` (default `normal`) - sets the XP'],
+    ['target', 'number 1-7', 'no', 'Weekly nodes only: times per week (default 2)'],
+    ['description', 'string', 'no', 'Why it matters, plus an optional `Unlock:` note (display only), max 280 characters'],
   ];
   nf.forEach(([a, b, c, d]) => L.push(`| \`${a}\` | ${b} | ${c} | ${d} |`));
   L.push('');
 
   L.push('## 7. Tips for a good path');
   L.push('');
-  L.push('- **Start tiny.** Tier I should be 1–3 easy or normal daily habits — the smallest version that still counts.');
+  L.push('- **Start tiny.** Tier 1 should be 1-3 easy or normal daily habits - the smallest version that still counts.');
   L.push('- **One node, one action.** "Code 45 minutes", not "Become good at coding".');
-  L.push('- **Milestones for outcomes.** Results (pass the exam, ship the app, run the race) are `milestone` nodes in Tiers III–VI.');
+  L.push('- **Milestones for outcomes.** Results (pass the exam, ship the app, run the race) are `milestone` nodes in Tiers 3-6.');
   L.push('- **Weekly for rhythms.** Things you do a few times a week are `weekly` with a `target`.');
   L.push('- **Always end in a capstone.** One Tier 6 milestone that names who you will have become.');
-  L.push('- **6–15 nodes** is a good size. You can add more later inside the app.');
+  L.push('- **6-15 nodes** is a good size. You can add more later inside the app.');
   L.push('');
 
   L.push('## 8. What the app does on import');
   L.push('');
-  L.push('- **Adds** each new path to PATHS, with Tier I open and the rest sealed until earned.');
+  L.push('- **Adds** each new path to PATHS, with Tier 1 open and the rest sealed until earned.');
   L.push('- A path whose **name already exists is skipped** (not updated), so re-importing is safe.');
   L.push(`- Paths beyond the **${MAX_PATHS}-path limit** are not added.`);
-  L.push('- Nodes without a title, and nodes beyond 4 in a tier, are **dropped**. An unknown `stat` becomes `mind`, an unknown `type` becomes `daily`, an unknown `difficulty` becomes `normal`, and an out-of-range `tier` is clamped to 1–6.');
-  L.push('- A path left with no name or no Tier I node is **ignored**.');
+  L.push(`- Nodes without a title, and nodes after the **first ${MAX_NODES_PER_TIER} in a tier** (in the order written), are **dropped** - the import banner names the dropped nodes.`);
+  L.push('- An unknown `stat` becomes `mind`, an unknown `type` becomes `daily`, an unknown `difficulty` becomes `normal`, and an out-of-range `tier` is clamped to 1-6.');
+  L.push('- A path left with no name or no Tier 1 node is **ignored**.');
+  L.push(`- A file whose \`"format"\` is newer than \`${PATH_FORMAT}\` still imports, with a warning that some details may be ignored. A file with no \`"format"\` is treated as \`${PATH_FORMAT}\`.`);
+  L.push('- A reply wrapped in a ```json code fence, or saved with a byte-order mark, still imports.');
   L.push('- Importing never touches your quests, XP or existing paths.');
   L.push('');
 

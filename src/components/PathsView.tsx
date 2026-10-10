@@ -8,7 +8,7 @@ import { Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather, Upload, Fi
 import { CustomPath, QuestDraft, STATS, UserClass } from '../types';
 import { TIER_LABEL, TIER_NAME } from '../data/lifeTree';
 import { MAX_PATHS, MAX_TIERS, nodeStatus, pathNodeToDraft, pathPercent, PathNodeStatus } from '../utils/paths';
-import { importPaths, describeImport } from '../utils/pathImport';
+import { importPaths, describeImport, parsePathFile } from '../utils/pathImport';
 import { buildPathImportGuide } from '../utils/pathTemplate';
 import { layoutPathTree, LaidCard } from '../utils/pathLayout';
 
@@ -46,7 +46,7 @@ function useImportExport(paths: CustomPath[], onImportPaths: (p: CustomPath[]) =
     e.target.value = ''; // allow picking the same file again
     if (!file) return;
     try {
-      const data = JSON.parse(await file.text());
+      const data = parsePathFile(await file.text());
       const { paths: added, summary } = importPaths(paths, data, new Date().toISOString());
       if (added.length) onImportPaths(added);
       setMsg({ ok: summary.added > 0, text: describeImport(summary) });
@@ -57,7 +57,8 @@ function useImportExport(paths: CustomPath[], onImportPaths: (p: CustomPath[]) =
 
   const downloadTemplate = () => {
     const md = buildPathImportGuide(paths, (typeof document !== 'undefined' && document.title) || 'Habit Quest', userClass);
-    const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+    // BOM so editors that guess encodings (TextEdit, old Notepad) open it as UTF-8.
+    const url = URL.createObjectURL(new Blob(['\uFEFF' + md], { type: 'text/markdown;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = 'habit-quest_path-import-template.md';
