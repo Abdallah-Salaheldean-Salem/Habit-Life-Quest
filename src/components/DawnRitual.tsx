@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import { Sunrise, Check, Plus, X, Pencil } from 'lucide-react';
-import { Quest, LedgerEntry, UserClass, STATS } from '../types';
+import { Quest, LedgerEntry, UserClass, STATS, StatType } from '../types';
+import StatPicker from './StatPicker';
 import { DayPhase, calculateQuestXp, isDawnRitualComplete } from '../utils/logic';
 
 interface DawnRitualProps {
@@ -18,7 +19,7 @@ interface DawnRitualProps {
   isLoggedToday: (questId: string) => boolean;
   onToggle: (q: Quest) => void;
   /** Add a step to the ritual (one step = a single checkbox, several = a checklist). */
-  onAddStep: (title: string) => void;
+  onAddStep: (title: string, stat: StatType) => void;
   /** Remove a step from the ritual. */
   onDeleteStep: (questId: string) => void;
 }
@@ -41,6 +42,7 @@ export default function DawnRitual({
   onDeleteStep,
 }: DawnRitualProps) {
   const [draft, setDraft] = useState('');
+  const [stepStat, setStepStat] = useState<StatType>('body');
   const [expanded, setExpanded] = useState(false);
   const prominent = phase === 'dawn';
   // "open" = show the full editable panel: either it's the morning, or the
@@ -90,7 +92,7 @@ export default function DawnRitual({
 
   const submit = () => {
     if (!draft.trim()) return;
-    onAddStep(draft);
+    onAddStep(draft, stepStat);
     setDraft('');
   };
 
@@ -204,7 +206,8 @@ export default function DawnRitual({
 
       {/* Add-step input — how the user dials in the ritual's granularity. */}
       {open && (
-        <div className="mt-2.5 flex items-center gap-1.5">
+        <div className="mt-2.5 space-y-2">
+        <div className="flex items-center gap-1.5">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -225,6 +228,11 @@ export default function DawnRitual({
           >
             <Plus className="h-3 w-3" /> Step
           </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-mono text-[8px] uppercase tracking-wider text-amber-300/50">Feeds</span>
+          <StatPicker value={stepStat} onChange={setStepStat} label="Stat for new step" size="xs" />
+        </div>
         </div>
       )}
 
