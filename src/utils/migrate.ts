@@ -5,7 +5,7 @@
 
 // The current save schema version. Bump this and add a matching `if
 // (updated.version < N)` branch whenever the persisted shape changes.
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 /**
  * Forward-migrate a persisted save of any older schema version up to the
@@ -75,6 +75,12 @@ export function migrate(save: any): any {
     updated.deletedIds = updated.deletedIds || [];
     // Anyone with a character already created moves to the live clock.
     updated.liveClock = updated.liveClock ?? Boolean(updated.hasCreatedCharacter);
+    updated.version = 9;
+  }
+
+  // v9 -> v10: custom Paths (user-forged skill trees).
+  if (updated.version < 10) {
+    updated.customPaths = updated.customPaths || [];
     updated.version = SCHEMA_VERSION;
   }
 

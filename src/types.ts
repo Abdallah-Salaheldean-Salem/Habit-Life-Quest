@@ -106,6 +106,42 @@ export interface Quest {
    * the evening wind-down. Only meaningful for daily quests.
    */
   phase?: QuestPhase;
+  /**
+   * The skill-tree node this quest was taken from — a built-in Life Skill Tree
+   * node (`life:…`) or a node of a custom Path. Links mastery to a stable id,
+   * so renaming the quest or the node doesn't break the tree's reveal.
+   */
+  nodeId?: string;
+}
+
+// ---------------------------------------------------------
+// CUSTOM PATHS — user-forged skill trees.
+// A Path is one extra branch that runs on the same engine as the built-in
+// tree: tiers I–VI (★), mastery-gated reveal, the same unlock rules and XP.
+// ---------------------------------------------------------
+export interface PathNode {
+  id: string;
+  /** 1 (Foundation) → 6 (★ Capstone). */
+  tier: number;
+  title: string;
+  type: QuestType;
+  difficulty: QuestDifficulty;
+  /** Weekly completion target. Dailies/milestones use 1. */
+  target: number;
+  description?: string;
+}
+
+export interface CustomPath {
+  id: string;
+  name: string;
+  /** Sets the path's colour and which class gets bonus XP on its quests. */
+  stat: StatType;
+  /** One line on what this path builds toward. */
+  purpose?: string;
+  nodes: PathNode[];
+  createdAt: string;
+  /** ISO timestamp — the newer edit wins when two devices sync. */
+  updatedAt: string;
 }
 
 /** The day/night ritual a quest can belong to. */
@@ -293,6 +329,7 @@ export interface SaveState {
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
   traitGoals?: TraitGoal[];
+  customPaths?: CustomPath[];
   /** Soft-delete tombstones: ids removed on this device so a sync can't resurrect them. */
   deletedIds?: string[];
   /** True once a real character exists — "today" tracks the real date instead of the demo's frozen clock. */

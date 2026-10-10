@@ -44,11 +44,14 @@ import {
   Bell
 } from 'lucide-react';
 
-import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, TraitId, TraitCheckin } from './types';
+import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, CustomPath, TraitId, TraitCheckin } from './types';
 import Sigil from './components/Sigil';
 import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
+import PathsView from './components/PathsView';
+import { NODES } from './data/lifeTree';
+import { lifeNodeId, nodeSetsFromQuests, MAX_PATHS } from './utils/paths';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import DebuffPanel from './components/DebuffPanel';
 import TraitPanel from './components/TraitPanel';
@@ -69,6 +72,7 @@ import { ACHIEVEMENTS } from './utils/achievements';
 // Split out of the initial bundle — a modal and a one-off overlay that only
 // mount on demand, so their code (and confetti) loads when first needed.
 const AddQuestModal = lazy(() => import('./components/AddQuestModal'));
+const ForgePathModal = lazy(() => import('./components/ForgePathModal'));
 const MasteryCelebration = lazy(() => import('./components/MasteryCelebration'));
 
 // Real-world Supabase Sync client and service
@@ -172,6 +176,7 @@ export default function App() {
   const [debuffs, setDebuffs] = useState<Debuff[]>([]);
   const [triggerEvents, setTriggerEvents] = useState<TriggerEvent[]>([]);
   const [traitGoals, setTraitGoals] = useState<TraitGoal[]>([]);
+  const [customPaths, setCustomPaths] = useState<CustomPath[]>([]);
   // Soft-delete tombstones so a sync can't resurrect a record deleted here.
   const [deletedIds, setDeletedIds] = useState<string[]>([]);
   // Real users track the real date; the demo mockup keeps its frozen clock.
@@ -202,7 +207,10 @@ export default function App() {
   const [isSyncingLanding, setIsSyncingLanding] = useState(false);
 
   // UI states
-  const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
+  const [questViewMode, setQuestViewMode] = useState<'list' | 'tree' | 'paths'>('tree');
+  // Forge a Path modal: open with no path = forge new; with a path = reforge it.
+  const [isForgeOpen, setIsForgeOpen] = useState(false);
+  const [editingPath, setEditingPath] = useState<CustomPath | null>(null);
   const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('character');
   const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
@@ -262,7 +270,7 @@ export default function App() {
     // friction, debuffs, traits, tombstones and dates — a lossy backup).
     const data = buildLocalSave({
       userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
-      traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
+      traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
     });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -310,6 +318,7 @@ export default function App() {
           debuffs: migrated.debuffs || [],
           triggerEvents: migrated.triggerEvents || [],
           traitGoals: migrated.traitGoals || [],
+          customPaths: migrated.customPaths || [],
           deletedIds: migrated.deletedIds || [],
           liveClock: isLive,
           debuffLocalOnly: migrated.debuffLocalOnly ?? debuffLocalOnly,
@@ -325,6 +334,7 @@ export default function App() {
         setDebuffs(fields.debuffs);
         setTriggerEvents(fields.triggerEvents);
         setTraitGoals(fields.traitGoals);
+        setCustomPaths(fields.customPaths);
         setDeletedIds(fields.deletedIds);
         setLiveClock(fields.liveClock);
         setDebuffLocalOnly(fields.debuffLocalOnly);
@@ -433,7 +443,7 @@ export default function App() {
       if (res.success && res.saveState) {
         let localState: SaveStateData = buildCloudSave({
           userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
-          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
+          traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
         });
         
         const saved = localStorage.getItem(SAVE_KEY);
@@ -450,6 +460,7 @@ export default function App() {
               debuffs: migrated.debuffs || [],
               triggerEvents: migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
+          customPaths: migrated.customPaths || [],
               deletedIds: migrated.deletedIds || [],
               liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
               debuffLocalOnly,
@@ -470,6 +481,7 @@ export default function App() {
         setLedger(merged.ledger);
         setFrictionItems(merged.frictionItems || []);
         setTraitGoals(merged.traitGoals || []);
+        setCustomPaths(merged.customPaths || []);
         setDeletedIds(merged.deletedIds || []);
         const mergedLive = merged.liveClock ?? Boolean(merged.hasCreatedCharacter);
         setLiveClock(mergedLive);
@@ -492,7 +504,7 @@ export default function App() {
         // No remote save exists, push current local state to cloud
         let localState: SaveStateData = buildCloudSave({
           userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
-          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
+          traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
         });
         
         const saved = localStorage.getItem(SAVE_KEY);
@@ -509,6 +521,7 @@ export default function App() {
               debuffs: migrated.debuffs || [],
               triggerEvents: migrated.triggerEvents || [],
               traitGoals: migrated.traitGoals || [],
+          customPaths: migrated.customPaths || [],
               deletedIds: migrated.deletedIds || [],
               liveClock: migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter),
               debuffLocalOnly,
@@ -555,6 +568,7 @@ export default function App() {
         setDebuffs(migrated.debuffs || []);
         setTriggerEvents(migrated.triggerEvents || []);
         setTraitGoals(migrated.traitGoals || []);
+        setCustomPaths(migrated.customPaths || []);
         setDeletedIds(migrated.deletedIds || []);
         const isLive = migrated.liveClock ?? Boolean(migrated.hasCreatedCharacter);
         setLiveClock(isLive);
@@ -606,14 +620,14 @@ export default function App() {
 
   // Save changes to localStorage whenever core state updates
   useEffect(() => {
-    if (quests.length > 0 || ledger.length > 0) {
+    if (quests.length > 0 || ledger.length > 0 || customPaths.length > 0) {
       const stateToSave = buildLocalSave({
         userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
-        traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
+        traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
       });
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in).
   // Debounced: a burst of edits (toggling several quests, typing) collapses
@@ -625,20 +639,20 @@ export default function App() {
       if (session?.user) {
         const stateToSave = buildCloudSave({
           userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
-          traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter,
+          traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter,
         });
         await pushSave(session.user.id, session.user.email || '', stateToSave);
       }
     };
 
-    if (quests.length > 0 || ledger.length > 0) {
+    if (quests.length > 0 || ledger.length > 0 || customPaths.length > 0) {
       if (pushTimer.current) clearTimeout(pushTimer.current);
       pushTimer.current = setTimeout(triggerPush, 1200);
     }
     return () => {
       if (pushTimer.current) clearTimeout(pushTimer.current);
     };
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
+  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
 
 
   const handleHardReset = () => {
@@ -652,6 +666,7 @@ export default function App() {
     setTriggerEvents([]);
     setHasCreatedCharacter(false);
     setTraitGoals([]);
+    setCustomPaths([]);
     setDeletedIds([]);
     setLiveClock(false);
     setCurrentMockDate(toDateStr(new Date()));
@@ -668,6 +683,7 @@ export default function App() {
     setDebuffs([]);
     setTriggerEvents([]);
     setTraitGoals([]);
+    setCustomPaths([]);
     setDeletedIds([]);
     // The demo's seeded history is anchored to a fixed date — freeze the clock.
     setLiveClock(false);
@@ -1110,10 +1126,19 @@ export default function App() {
   // Titles of quests already on the board, and of those already mastered —
   // drives the skill tree's progressive reveal (a tier unlocks once a node
   // from the tier before it is mastered).
-  const activeTitles = new Set(quests.filter((q) => q.active).map((q) => q.title));
-  const masteredTitles = new Set(
-    quests.filter((q) => getUnlockProgress(q, ledger, currentMockDate).unlocked).map((q) => q.title),
+  const unlockedQuestIds = new Set(
+    quests.filter((q) => getUnlockProgress(q, ledger, currentMockDate).unlocked).map((q) => q.id),
   );
+  const activeTitles = new Set(quests.filter((q) => q.active).map((q) => q.title));
+  const masteredTitles = new Set(quests.filter((q) => unlockedQuestIds.has(q.id)).map((q) => q.title));
+  // Stable node-id links (built-in tree + custom Paths). A renamed quest still
+  // counts for the node it came from.
+  const { masteredNodeIds, activeNodeIds } = nodeSetsFromQuests(quests, (q) => unlockedQuestIds.has(q.id));
+  for (const n of NODES) {
+    const id = lifeNodeId(n);
+    if (masteredNodeIds.has(id)) masteredTitles.add(n.title);
+    if (activeNodeIds.has(id)) activeTitles.add(n.title);
+  }
 
   // Check achievements unlocks
   const unlockedAchievementsCount = ACHIEVEMENTS.reduce((count, ach) => {
@@ -1332,7 +1357,7 @@ export default function App() {
 
   // Add a new quest (skips an exact-title duplicate that's already on the board)
   const handleAddQuest = (questData: Omit<Quest, 'id' | 'createdAt' | 'active'>) => {
-    if (quests.some((q) => q.active && q.title === questData.title)) {
+    if (quests.some((q) => q.active && (q.title === questData.title || (questData.nodeId && q.nodeId === questData.nodeId)))) {
       showToast(`"${questData.title}" is already on your board.`);
       return;
     }
@@ -1404,6 +1429,29 @@ export default function App() {
     }));
     setQuests([...quests, ...newQuests]);
     showToast(`${label} loaded — ${newQuests.length} quest${newQuests.length > 1 ? 's' : ''} added.`);
+  };
+
+  // Custom Paths — save (create or reforge) and abandon. Abandoning a path
+  // tombstones it so a sync can't bring it back; its quests and XP stay.
+  const handleSavePath = (path: CustomPath) => {
+    const exists = customPaths.some((p) => p.id === path.id);
+    if (!exists && customPaths.length >= MAX_PATHS) {
+      showToast(`You can walk at most ${MAX_PATHS} paths at once.`);
+      return;
+    }
+    setCustomPaths(exists ? customPaths.map((p) => (p.id === path.id ? path : p)) : [...customPaths, path]);
+    setIsForgeOpen(false);
+    setEditingPath(null);
+    showToast(exists ? `"${path.name}" reforged.` : `"${path.name}" forged — its first tier is open.`);
+  };
+
+  const handleDeletePath = (id: string) => {
+    const name = customPaths.find((p) => p.id === id)?.name ?? 'Path';
+    setCustomPaths(customPaths.filter((p) => p.id !== id));
+    setDeletedIds((prev) => [...prev, id]);
+    setIsForgeOpen(false);
+    setEditingPath(null);
+    showToast(`"${name}" abandoned. Its quests and XP remain.`);
   };
 
   // Archive/delete quest (keeping XP ledger intact!)
@@ -1484,6 +1532,7 @@ export default function App() {
     setDebuffs([]);
     setTriggerEvents([]);
     setTraitGoals([]);
+    setCustomPaths([]);
     setDeletedIds([]);
     // Persist the clean slate immediately: the length-guarded autosave won't
     // fire on an empty board, so without this the mockup would reload.
@@ -1499,6 +1548,7 @@ export default function App() {
           debuffs: [],
           triggerEvents: [],
           traitGoals: [],
+          customPaths: [],
           deletedIds: [],
           liveClock: true,
           debuffLocalOnly,
@@ -2475,10 +2525,10 @@ export default function App() {
               <div className="flex justify-between items-center mb-6 border-b border-white/5 pb-3">
                 <div>
                   <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">
-                    {questViewMode === 'list' ? 'QUEST LOG' : 'TASK SKILL TREE'}
+                    {questViewMode === 'list' ? 'QUEST LOG' : questViewMode === 'paths' ? 'MY PATHS' : 'TASK SKILL TREE'}
                   </h2>
                   <p className="font-mono text-[9px] text-slate-500 uppercase mt-0.5">
-                    {questViewMode === 'list' ? 'Your Current Habits and Milestones' : 'Path of Progression'}
+                    {questViewMode === 'list' ? 'Your Current Habits and Milestones' : questViewMode === 'paths' ? 'Skill Trees Forged by Your Hand' : 'Path of Progression'}
                   </p>
                 </div>
                 <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
@@ -2509,6 +2559,14 @@ export default function App() {
                       }`}
                     >
                       TREE
+                    </button>
+                    <button
+                      onClick={() => setQuestViewMode('paths')}
+                      className={`px-3 py-1 text-[10px] font-mono rounded transition-all cursor-pointer ${
+                        questViewMode === 'paths' ? 'bg-white/10 text-[#d4af37]' : 'text-slate-500 hover:text-slate-300'
+                      }`}
+                    >
+                      PATHS
                     </button>
                     <button
                       onClick={() => setQuestViewMode('list')}
@@ -2545,6 +2603,15 @@ export default function App() {
                   onLoadSeason={handleLoadSeason}
                   masteredTitles={masteredTitles}
                   activeTitles={activeTitles}
+                />
+              ) : questViewMode === 'paths' ? (
+                <PathsView
+                  paths={customPaths}
+                  masteredNodeIds={masteredNodeIds}
+                  activeNodeIds={activeNodeIds}
+                  onAddQuest={handleAddQuest}
+                  onForge={() => { setEditingPath(null); setIsForgeOpen(true); }}
+                  onEdit={(p) => { setEditingPath(p); setIsForgeOpen(true); }}
                 />
               ) : (
                 <>
@@ -3053,6 +3120,19 @@ export default function App() {
             onAdd={handleAddQuest}
             onUpdate={handleUpdateQuest}
             userClass={userClass}
+          />
+        </Suspense>
+      )}
+
+      {isForgeOpen && (
+        <Suspense fallback={null}>
+          <ForgePathModal
+            editing={editingPath ?? undefined}
+            masteredNodeIds={masteredNodeIds}
+            defaultStat={CLASSES[userClass].bonusStat}
+            onSave={handleSavePath}
+            onDelete={handleDeletePath}
+            onClose={() => { setIsForgeOpen(false); setEditingPath(null); }}
           />
         </Suspense>
       )}
