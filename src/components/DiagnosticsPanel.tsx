@@ -14,6 +14,11 @@ interface DiagnosticsPanelProps {
   onAddFreeXp: (xp: number) => void;
   onResetToMockup: () => void;
   onHardReset: () => void;
+  /** Controlled mode (phone ⋯ menu): open state lives in the parent. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Hide the floating flask trigger (when opened from a menu instead). */
+  hideTrigger?: boolean;
 }
 
 /**
@@ -28,10 +33,16 @@ export default function DiagnosticsPanel({
   onAddFreeXp,
   onResetToMockup,
   onHardReset,
+  open: openProp,
+  onOpenChange,
+  hideTrigger,
 }: DiagnosticsPanelProps) {
-  const [open, setOpen] = useState(false);
+  const [innerOpen, setInnerOpen] = useState(false);
+  const open = openProp ?? innerOpen;
+  const setOpen = (o: boolean) => (onOpenChange ? onOpenChange(o) : setInnerOpen(o));
 
   if (!open) {
+    if (hideTrigger) return null;
     return (
       <button
         onClick={() => setOpen(true)}

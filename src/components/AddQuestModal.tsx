@@ -102,7 +102,7 @@ export default function AddQuestModal({ isOpen, onClose, onAdd, userClass, editQ
 
   return (
     <div className="fixed inset-0 bg-[#050510]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
+      <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-5 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
         <div className="flex justify-between items-center mb-6">
           <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">{editQuest ? 'Edit Quest' : 'Draft a Quest'}</h2>
           <button

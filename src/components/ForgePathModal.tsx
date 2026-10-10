@@ -177,7 +177,7 @@ export default function ForgePathModal({ editing, masteredNodeIds, defaultStat, 
   if (!draft) {
     return (
       <div className="fixed inset-0 bg-[#050510]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-        <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
+        <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-5 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in">
           <div className="flex justify-between items-center mb-2">
             <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">Forge a Path</h2>
             <button onClick={onClose} className="p-1.5 text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer" title="Close">
@@ -248,7 +248,7 @@ export default function ForgePathModal({ editing, masteredNodeIds, defaultStat, 
   const color = STATS[draft.stat].color;
   return (
     <div className="fixed inset-0 bg-[#050510]/80 backdrop-blur-sm z-50 flex items-start sm:items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-6 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in my-4">
+      <div className="w-full max-w-lg bg-[#15152a] border border-[#d4af37]/20 rounded-2xl p-5 sm:p-8 shadow-[0_0_50px_rgba(212,175,55,0.08)] animate-fade-in my-4">
         <div className="flex justify-between items-center mb-6">
           <h2 className="font-serif text-lg font-bold text-[#d4af37] uppercase tracking-widest">{editing ? 'Reforge Path' : 'Forge a Path'}</h2>
           <button onClick={onClose} className="p-1.5 text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer" title="Close">

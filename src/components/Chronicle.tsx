@@ -66,7 +66,7 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
   const streak = getAppWideStreak(Array.from(dailyXp.keys()), todayStr);
 
   return (
-    <div id="chronicle-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-lg p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
+    <div id="chronicle-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
       <div className="flex justify-between items-center mb-4 border-b border-white/5 pb-3">
         <div>
           <h3 className="font-serif text-sm tracking-widest text-[#d4af37] uppercase">CHRONICLE</h3>
