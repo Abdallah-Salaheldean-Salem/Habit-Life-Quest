@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useRef, useState } from 'react';
-import { Plus, Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather, Upload, FileText, X } from 'lucide-react';
-import { CustomPath, PathNode, QuestDraft, STATS, UserClass } from '../types';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather, Upload, FileText, X } from 'lucide-react';
+import { CustomPath, QuestDraft, STATS, UserClass } from '../types';
 import { TIER_LABEL, TIER_NAME } from '../data/lifeTree';
-import { MAX_PATHS, MAX_TIERS, nodeStatus, pathFrontier, pathNodeToDraft, pathPercent, PathNodeStatus } from '../utils/paths';
+import { MAX_PATHS, MAX_TIERS, nodeStatus, pathNodeToDraft, pathPercent, PathNodeStatus } from '../utils/paths';
 import { importPaths, describeImport } from '../utils/pathImport';
 import { buildPathImportGuide } from '../utils/pathTemplate';
+import { layoutPathTree, LaidCard } from '../utils/pathLayout';
 
 // ---------------------------------------------------------
 // MY PATHS — user-forged skill trees.
@@ -107,60 +108,6 @@ function useImportExport(paths: CustomPath[], onImportPaths: (p: CustomPath[]) =
   return { fileInput, buttons, banner };
 }
 
-function PathNodeCard({
-  node,
-  path,
-  status,
-  onAddQuest,
-}: {
-  node: PathNode;
-  path: CustomPath;
-  status: PathNodeStatus;
-  onAddQuest: (q: QuestDraft) => void;
-}) {
-  const color = STATS[path.stat].color;
-  const locked = status === 'locked';
-  return (
-    <button
-      type="button"
-      disabled={locked}
-      onClick={() => onAddQuest(pathNodeToDraft(node, path))}
-      title={locked ? 'Sealed — master a node in the tier below to reveal it.' : `${node.description ?? ''}\n\nTap to add this quest.`.trim()}
-      className={`w-full text-left border border-white/5 rounded-md p-2 transition-all group ${
-        locked ? 'bg-[#0c0c1b]/60 border-dashed cursor-not-allowed' : 'bg-[#1a1a2e] hover:bg-[#1e1e36] active:bg-[#1e1e36] cursor-pointer'
-      }`}
-      style={{ borderLeftColor: locked ? 'rgba(255,255,255,0.08)' : color, borderLeftWidth: 3, borderLeftStyle: 'solid' }}
-    >
-      <div className="flex items-start justify-between gap-1.5">
-        <h5 className={`font-semibold text-[11px] leading-tight ${locked ? 'text-slate-600' : ''}`} style={locked ? undefined : { color }}>
-          {node.title}
-        </h5>
-        {status === 'mastered' ? (
-          <Check className="w-3 h-3 text-[#d4af37] shrink-0 mt-0.5" />
-        ) : locked ? (
-          <Lock className="w-3 h-3 text-slate-700 shrink-0 mt-0.5" />
-        ) : (
-          <Plus className="w-3 h-3 text-slate-600 group-hover:text-white shrink-0 mt-0.5" />
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-1 mt-1 font-mono text-[7px] text-slate-500 uppercase tracking-wide">
-        <span>{node.type}</span>
-        <span>·</span>
-        <span>{node.difficulty}</span>
-        {node.type === 'weekly' && (
-          <>
-            <span>·</span>
-            <span>{node.target}×/wk</span>
-          </>
-        )}
-        {status === 'mastered' && <span className="text-[#d4af37] normal-case">· mastered</span>}
-        {status === 'active' && <span className="text-emerald-400/70 normal-case">· on board</span>}
-        {locked && <span className="text-slate-600 normal-case">· sealed</span>}
-      </div>
-    </button>
-  );
-}
-
 function PathColumn({
   path,
   masteredNodeIds,
@@ -175,12 +122,8 @@ function PathColumn({
   onEdit: (p: CustomPath) => void;
 }) {
   const config = STATS[path.stat];
-  const frontier = pathFrontier(path, masteredNodeIds);
   const percent = pathPercent(path, masteredNodeIds);
-  const tiers = Array.from({ length: MAX_TIERS }, (_, i) => i + 1).filter((t) => path.nodes.some((n) => n.tier === t));
   const capstoneDone = path.nodes.some((n) => n.tier === MAX_TIERS && masteredNodeIds.has(n.id));
-  // The first sealed tier gets the "how to reveal" hint.
-  const firstSealed = tiers.find((t) => t > frontier);
 
   return (
     <div className="bg-[#0f0f22] border border-white/5 rounded-lg p-4" style={{ borderTopColor: `${config.color}80`, borderTopWidth: 2 }}>
@@ -213,49 +156,190 @@ function PathColumn({
         <span className="font-mono text-[8px] text-slate-500">{capstoneDone ? '★ SEALED' : `${percent}%`}</span>
       </div>
 
-      {/* The ascent: a trunk with tier markers */}
-      <div className="relative pl-6">
-        <div className="absolute left-2 top-1 bottom-1 w-px" style={{ backgroundColor: `${config.color}40` }} />
-        <div className="space-y-3">
-          {tiers.map((tier) => {
-            const nodes = path.nodes.filter((n) => n.tier === tier);
-            const revealed = tier <= frontier;
-            const cleared = nodes.some((n) => masteredNodeIds.has(n.id));
-            return (
-              <div key={tier} className="relative">
-                <span
-                  className="absolute -left-6 top-0 w-4 h-4 rounded-full border bg-[#050510] flex items-center justify-center font-mono text-[7px] font-bold"
-                  style={
-                    revealed
-                      ? { borderColor: config.color, color: cleared ? '#050510' : config.color, backgroundColor: cleared ? config.color : '#050510' }
-                      : { borderColor: 'rgba(255,255,255,0.15)', color: '#475569' }
-                  }
-                >
-                  {revealed ? TIER_LABEL[tier] : <Lock className="w-2 h-2" />}
-                </span>
-                <div className="font-mono text-[7px] uppercase tracking-widest mb-1.5 pt-0.5" style={{ color: revealed ? '#64748b' : '#334155' }}>
-                  {TIER_LABEL[tier]} · {TIER_NAME[tier]}
-                  {tier === firstSealed && (
-                    <span className="normal-case tracking-normal"> — master a {TIER_NAME[frontier]} node to reveal</span>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  {nodes.map((n) => (
-                    <PathNodeCard
-                      key={n.id}
-                      node={n}
-                      path={path}
-                      status={nodeStatus(n, path, masteredNodeIds, activeNodeIds)}
-                      onAddQuest={onAddQuest}
-                    />
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
+      {/* The tree: the path is the root; tiers branch upward from it */}
+      <PathTree path={path} masteredNodeIds={masteredNodeIds} activeNodeIds={activeNodeIds} onAddQuest={onAddQuest} />
     </div>
+  );
+}
+
+/** Width of an element, kept current as it resizes (phone rotation, sidebar…). */
+function useWidth<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [width, setWidth] = useState(0);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    setWidth(Math.floor(el.getBoundingClientRect().width));
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(([entry]) => setWidth(Math.floor(entry.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, width] as const;
+}
+
+/**
+ * A path drawn as a skill tree, matching the Life Skill Tree's spatial view:
+ * node cards with tier badges, branch lines in the stat colour meeting at
+ * junctions on a trunk, a glowing root, and a dashed tease for the first
+ * sealed tier. Deeper tiers stay hidden until earned, exactly like the
+ * built-in tree.
+ */
+function PathTree({
+  path,
+  masteredNodeIds,
+  activeNodeIds,
+  onAddQuest,
+}: {
+  path: CustomPath;
+  masteredNodeIds: Set<string>;
+  activeNodeIds: Set<string>;
+  onAddQuest: (q: QuestDraft) => void;
+}) {
+  const [ref, width] = useWidth<HTMLDivElement>();
+  const config = STATS[path.stat];
+  const color = config.color;
+  const layout = width ? layoutPathTree(path, masteredNodeIds, width) : null;
+  const percent = pathPercent(path, masteredNodeIds);
+
+  // A soft S-curve from a card's bottom-centre down to its junction.
+  const branch = (c: LaidCard) => {
+    const x1 = c.x + c.w / 2;
+    const y1 = c.y + c.h;
+    const { x: x2, y: y2 } = c.anchor;
+    const my = (y1 + y2) / 2;
+    return `M ${x1} ${y1} C ${x1} ${my}, ${x2} ${my}, ${x2} ${y2}`;
+  };
+
+  return (
+    <div ref={ref} className="w-full">
+      {layout && (
+        <div className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
+          <svg className="absolute inset-0" width={layout.width} height={layout.height} style={{ pointerEvents: 'none' }} aria-hidden>
+            {layout.trunk.map((t, i) => (
+              <line
+                key={`t${i}`}
+                x1={t.x1}
+                y1={t.y1}
+                x2={t.x2}
+                y2={t.y2}
+                stroke={t.locked ? 'rgba(255,255,255,0.14)' : color}
+                strokeOpacity={t.locked ? 1 : 0.5}
+                strokeWidth={2}
+                strokeDasharray={t.locked ? '4 5' : undefined}
+              />
+            ))}
+            {layout.cards.map((c, i) => (
+              <path
+                key={`b${i}`}
+                d={branch(c)}
+                fill="none"
+                stroke={c.kind === 'locked' ? 'rgba(255,255,255,0.14)' : color}
+                strokeOpacity={c.kind === 'locked' ? 1 : 0.45}
+                strokeWidth={2}
+                strokeDasharray={c.kind === 'locked' ? '4 5' : undefined}
+              />
+            ))}
+            {layout.hubs.map((h, i) => (
+              <circle
+                key={`h${i}`}
+                cx={h.x}
+                cy={h.y}
+                r={4}
+                fill="#050510"
+                stroke={h.locked ? 'rgba(255,255,255,0.2)' : color}
+                strokeWidth={2}
+              />
+            ))}
+          </svg>
+
+          {layout.cards.map((c) =>
+            c.kind === 'locked' ? (
+              <div
+                key={`locked-${c.tier}`}
+                className="absolute rounded-lg border border-dashed border-white/10 bg-[#0c0c1b] flex flex-col items-center justify-center text-center px-2"
+                style={{ left: c.x, top: c.y, width: c.w, height: c.h }}
+              >
+                <span className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border border-white/15 flex items-center justify-center">
+                  <Lock className="w-2 h-2 text-slate-500" />
+                </span>
+                <p className="font-mono text-[9px] text-slate-500 uppercase tracking-wider">{c.count} locked</p>
+                <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mt-0.5 leading-snug">
+                  Master a <span style={{ color }}>{TIER_NAME[layout.frontier]}</span> node
+                </p>
+              </div>
+            ) : (
+              <PathTreeCard
+                key={c.node!.id}
+                card={c}
+                path={path}
+                status={nodeStatus(c.node!, path, masteredNodeIds, activeNodeIds)}
+                onAddQuest={onAddQuest}
+              />
+            ),
+          )}
+
+          {/* Root — the path itself */}
+          <div
+            className="absolute z-20 rounded-full border-2 bg-[#15152a] flex flex-col items-center justify-center text-center px-2"
+            style={{
+              left: layout.root.x - layout.root.r,
+              top: layout.root.y - layout.root.r,
+              width: layout.root.r * 2,
+              height: layout.root.r * 2,
+              borderColor: color,
+              boxShadow: `0 0 22px ${color}73`,
+            }}
+            title={path.purpose || path.name}
+          >
+            <span className="font-serif text-[10px] font-bold uppercase tracking-wider leading-tight line-clamp-2" style={{ color }}>
+              {path.name}
+            </span>
+            <span className="font-mono text-[7px] text-slate-500 uppercase tracking-widest mt-1">{percent}% · root</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PathTreeCard({
+  card,
+  path,
+  status,
+  onAddQuest,
+}: {
+  card: LaidCard;
+  path: CustomPath;
+  status: PathNodeStatus;
+  onAddQuest: (q: QuestDraft) => void;
+}) {
+  const node = card.node!;
+  const color = STATS[path.stat].color;
+  const meta = `${node.type} · ${node.difficulty}${node.type === 'weekly' ? ` · ${node.target}×/wk` : ''}`;
+  return (
+    <button
+      type="button"
+      onClick={() => onAddQuest(pathNodeToDraft(node, path))}
+      title={`${node.description ?? node.title}\n\nTap to add this quest.`}
+      className="absolute z-10 rounded-lg border bg-[#15152a] hover:bg-[#1a1a2e] flex flex-col items-center justify-center text-center px-2 transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
+      style={{ left: card.x, top: card.y, width: card.w, height: card.h, borderColor: color, boxShadow: `0 0 10px ${color}22` }}
+    >
+      <span
+        className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border flex items-center justify-center font-mono text-[8px] font-bold"
+        style={{ borderColor: color, color }}
+      >
+        {TIER_LABEL[node.tier]}
+      </span>
+      {status === 'mastered' && <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-[#d4af37]" aria-label="Mastered" />}
+      <h4 className="font-bold text-[13px] sm:text-sm leading-tight line-clamp-2" style={{ color }}>
+        {node.title}
+      </h4>
+      <p className="text-[8px] sm:text-[9px] text-slate-400 uppercase tracking-wider mt-1 leading-snug">
+        {meta}
+        {status === 'active' && <span className="text-emerald-400/70"> · on board</span>}
+      </p>
+    </button>
   );
 }
 
@@ -324,7 +408,7 @@ export default function PathsView({ paths, masteredNodeIds, activeNodeIds, onAdd
         )}
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-4">
         {paths.map((p) => (
           <PathColumn
             key={p.id}
