@@ -3,11 +3,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Plus, Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather } from 'lucide-react';
-import { CustomPath, PathNode, QuestDraft, STATS } from '../types';
+import React, { useRef, useState } from 'react';
+import { Plus, Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather, Upload, FileText, X } from 'lucide-react';
+import { CustomPath, PathNode, QuestDraft, STATS, UserClass } from '../types';
 import { TIER_LABEL, TIER_NAME } from '../data/lifeTree';
 import { MAX_PATHS, MAX_TIERS, nodeStatus, pathFrontier, pathNodeToDraft, pathPercent, PathNodeStatus } from '../utils/paths';
+import { importPaths, describeImport } from '../utils/pathImport';
+import { buildPathImportGuide } from '../utils/pathTemplate';
 
 // ---------------------------------------------------------
 // MY PATHS — user-forged skill trees.
@@ -24,6 +26,85 @@ interface Props {
   onAddQuest: (q: QuestDraft) => void;
   onForge: () => void;
   onEdit: (path: CustomPath) => void;
+  /** Add paths read from an import file. */
+  onImportPaths: (paths: CustomPath[]) => void;
+  userClass?: UserClass;
+}
+
+/**
+ * Template + Import — the same pair as the task importer elsewhere: Template
+ * downloads an AI-ready Markdown guide; Import reads the JSON it produces and
+ * merges it in, reporting what happened in a banner.
+ */
+function useImportExport(paths: CustomPath[], onImportPaths: (p: CustomPath[]) => void, userClass?: UserClass) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const { paths: added, summary } = importPaths(paths, data, new Date().toISOString());
+      if (added.length) onImportPaths(added);
+      setMsg({ ok: summary.added > 0, text: describeImport(summary) });
+    } catch (err) {
+      setMsg({ ok: false, text: err instanceof SyntaxError ? 'That file isn’t valid JSON.' : (err as Error).message });
+    }
+  };
+
+  const downloadTemplate = () => {
+    const md = buildPathImportGuide(paths, (typeof document !== 'undefined' && document.title) || 'Habit Quest', userClass);
+    const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'habit-quest_path-import-template.md';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  const fileInput = (
+    <input ref={inputRef} type="file" accept=".json,application/json" onChange={handleFile} className="hidden" />
+  );
+  const buttons = (
+    <>
+      <button
+        id="path-template-btn"
+        type="button"
+        onClick={downloadTemplate}
+        title="Download a template + guide you can give to an AI to prepare an import file"
+        className="shrink-0 border border-white/10 hover:border-white/25 text-slate-300 hover:text-white font-mono text-[9px] uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all inline-flex items-center gap-1.5"
+      >
+        <FileText className="w-3 h-3" /> Template
+      </button>
+      <button
+        id="path-import-btn"
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        title="Import paths from a .json file"
+        className="shrink-0 border border-sky-500/30 hover:bg-sky-500/10 text-sky-300 font-mono text-[9px] uppercase tracking-wider py-1.5 px-3 rounded cursor-pointer transition-all inline-flex items-center gap-1.5"
+      >
+        <Upload className="w-3 h-3" /> Import
+      </button>
+    </>
+  );
+  const banner = msg && (
+    <div
+      id="path-import-result"
+      className={`mb-4 flex items-start justify-between gap-3 rounded-lg border px-3 py-2 font-mono text-[10px] ${
+        msg.ok ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-rose-500/30 bg-rose-500/10 text-rose-300'
+      }`}
+    >
+      <span>{msg.text}</span>
+      <button type="button" onClick={() => setMsg(null)} className="shrink-0 opacity-70 hover:opacity-100 cursor-pointer" title="Dismiss">
+        <X className="w-3 h-3" />
+      </button>
+    </div>
+  );
+  return { fileInput, buttons, banner };
 }
 
 function PathNodeCard({
@@ -178,10 +259,14 @@ function PathColumn({
   );
 }
 
-export default function PathsView({ paths, masteredNodeIds, activeNodeIds, onAddQuest, onForge, onEdit }: Props) {
+export default function PathsView({ paths, masteredNodeIds, activeNodeIds, onAddQuest, onForge, onEdit, onImportPaths, userClass }: Props) {
+  const { fileInput, buttons, banner } = useImportExport(paths, onImportPaths, userClass);
+
   if (paths.length === 0) {
     return (
       <div className="text-center py-8 px-4">
+        {fileInput}
+        {banner}
         <div className="w-12 h-12 mx-auto rounded-full border border-[#d4af37]/30 bg-[#1a1a2e] flex items-center justify-center mb-4">
           <Hammer className="w-5 h-5 text-[#d4af37]" />
         </div>
@@ -210,16 +295,24 @@ export default function PathsView({ paths, masteredNodeIds, activeNodeIds, onAdd
         >
           <Hammer className="w-3.5 h-3.5" /> Forge a Path
         </button>
+        <div className="mt-4 flex items-center justify-center gap-2">{buttons}</div>
+        <p className="font-sans text-[10px] text-slate-600 mt-2 max-w-sm mx-auto leading-snug">
+          Or download the template, hand it to an AI with your goal, and import the path it writes.
+        </p>
       </div>
     );
   }
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-2 mb-4">
+      {fileInput}
+      {banner}
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <p className="font-mono text-[9px] text-slate-500 uppercase tracking-wider">
           Tap a revealed node to add it to your board · {paths.length}/{MAX_PATHS} paths
         </p>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+        {buttons}
         {paths.length < MAX_PATHS && (
           <button
             type="button"
@@ -229,6 +322,7 @@ export default function PathsView({ paths, masteredNodeIds, activeNodeIds, onAdd
             <Hammer className="w-3 h-3" /> Forge a Path
           </button>
         )}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {paths.map((p) => (
