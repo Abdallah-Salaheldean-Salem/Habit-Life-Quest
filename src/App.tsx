@@ -1344,7 +1344,7 @@ export default function App() {
   // Campfire micro-reflection — banks the day by logging one win into Spirit or
   // Mind. One per day: submitting replaces it, empty text clears it. Modelled as
   // a ledger entry so it persists and syncs like any other XP.
-  const handleReflect = (text: string, stat: 'spirit' | 'mind') => {
+  const handleReflect = (text: string, stat: StatType) => {
     const id = `reflection_${currentMockDate}`;
     const t = text.trim();
     if (!t) {
@@ -1398,14 +1398,15 @@ export default function App() {
   // Quick-add a ritual step — a low-friction daily quest tagged to a phase.
   // One step makes a single "routine" checkbox; several make a checklist. This
   // is what lets the user choose how granular their Dawn/Campfire ritual is.
-  const handleAddRitualStep = (phase: 'dawn' | 'campfire', title: string) => {
+  const handleAddRitualStep = (phase: 'dawn' | 'campfire', title: string, chosenStat?: StatType) => {
     const t = title.trim();
     if (!t) return;
     if (quests.some((q) => q.active && q.title === t)) {
       showToast(`"${t}" is already on your board.`);
       return;
     }
-    const stat: StatType = phase === 'dawn' ? 'body' : 'spirit';
+    // The step feeds the stat the user picked (defaults: Dawn → Body, Campfire → Spirit).
+    const stat: StatType = chosenStat ?? (phase === 'dawn' ? 'body' : 'spirit');
     const newQuest: Quest = {
       id: uid('quest'),
       title: t,
@@ -2671,10 +2672,10 @@ export default function App() {
                   ritual is front-and-center: Dawn before 9 AM, Campfire after 8 PM. */}
               {(() => {
                 const dawn = (
-                  <DawnRitual key="dawn" quests={dawnQuests} ledger={ledger} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} onAddStep={(t) => handleAddRitualStep('dawn', t)} onDeleteStep={handleDeleteQuest} />
+                  <DawnRitual key="dawn" quests={dawnQuests} ledger={ledger} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} onAddStep={(t, st) => handleAddRitualStep('dawn', t, st)} onDeleteStep={handleDeleteQuest} />
                 );
                 const camp = (
-                  <Campfire key="campfire" quests={campfireQuests} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} todaysReflection={todaysReflection} onReflect={handleReflect} onAddStep={(t) => handleAddRitualStep('campfire', t)} onDeleteStep={handleDeleteQuest} />
+                  <Campfire key="campfire" quests={campfireQuests} currentDate={currentMockDate} phase={dayPhase} userClass={userClass} isLoggedToday={isLoggedToday} onToggle={handleToggleCheckCircle} todaysReflection={todaysReflection} onReflect={handleReflect} onAddStep={(t, st) => handleAddRitualStep('campfire', t, st)} onDeleteStep={handleDeleteQuest} />
                 );
                 return dayPhase === 'campfire' ? [camp, dawn] : [dawn, camp];
               })()}

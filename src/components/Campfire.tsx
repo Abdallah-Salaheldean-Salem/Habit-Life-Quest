@@ -5,7 +5,8 @@
 
 import React, { useState } from 'react';
 import { Flame, Check, Moon, Plus, X, Pencil } from 'lucide-react';
-import { Quest, LedgerEntry, UserClass, STATS } from '../types';
+import { Quest, LedgerEntry, UserClass, STATS, StatType } from '../types';
+import StatPicker from './StatPicker';
 import { DayPhase, calculateQuestXp, REFLECTION_XP } from '../utils/logic';
 
 interface CampfireProps {
@@ -19,9 +20,9 @@ interface CampfireProps {
   /** Today's reflection ledger entry, if the day has been banked. */
   todaysReflection?: LedgerEntry;
   /** Save (or, with empty text, clear) today's reflection into a stat. */
-  onReflect: (text: string, stat: 'spirit' | 'mind') => void;
-  /** Add a step to the ritual (one step = a single checkbox, several = a checklist). */
-  onAddStep: (title: string) => void;
+  onReflect: (text: string, stat: StatType) => void;
+  /** Add a step to the ritual (one step = a single checkbox, several = a checklist), feeding `stat`. */
+  onAddStep: (title: string, stat: StatType) => void;
   /** Remove a step from the ritual. */
   onDeleteStep: (questId: string) => void;
 }
@@ -29,7 +30,7 @@ interface CampfireProps {
 /**
  * The Campfire — the evening wind-down. It takes over after 8 PM: the steps are
  * recovery (reading, prepping tomorrow, screens down), and the micro-reflection
- * "banks" the day by logging one win into Spirit or Mind. Skipping it costs
+ * "banks" the day by logging one win into any of the five stats. Skipping it costs
  * nothing. Keep it to one step for a single checkbox, or add several.
  */
 export default function Campfire({
@@ -49,8 +50,9 @@ export default function Campfire({
   const open = prominent || expanded;
   const banked = Boolean(todaysReflection);
   const [text, setText] = useState('');
-  const [reflectStat, setReflectStat] = useState<'spirit' | 'mind'>('spirit');
+  const [reflectStat, setReflectStat] = useState<StatType>('spirit');
   const [draft, setDraft] = useState('');
+  const [stepStat, setStepStat] = useState<StatType>('spirit');
 
   // Nothing set up and not open → a slim, always-visible entry point so the
   // ritual is discoverable at any hour without cluttering the board.
@@ -81,7 +83,7 @@ export default function Campfire({
 
   const addStep = () => {
     if (!draft.trim()) return;
-    onAddStep(draft);
+    onAddStep(draft, stepStat);
     setDraft('');
   };
 
@@ -179,7 +181,8 @@ export default function Campfire({
 
       {/* Add-step input — dials in the ritual's granularity. */}
       {open && (
-        <div className="mb-3 flex items-center gap-1.5">
+        <div className="mb-3 space-y-2">
+        <div className="flex items-center gap-1.5">
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -201,6 +204,11 @@ export default function Campfire({
             <Plus className="h-3 w-3" /> Step
           </button>
         </div>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="font-mono text-[8px] uppercase tracking-wider text-orange-300/50">Feeds</span>
+          <StatPicker value={stepStat} onChange={setStepStat} label="Stat for new step" size="xs" />
+        </div>
+        </div>
       )}
 
       {/* Micro-reflection — the "bank" action. Evening only. */}
@@ -217,7 +225,7 @@ export default function Campfire({
                   “{todaysReflection!.questTitle.replace(/^Campfire:\s*/, '')}”
                 </p>
                 <button
-                  onClick={() => onReflect('', todaysReflection!.stat as 'spirit' | 'mind')}
+                  onClick={() => onReflect('', todaysReflection!.stat)}
                   className="mt-1.5 font-mono text-[9px] uppercase tracking-wider text-slate-500 hover:text-orange-300"
                 >
                   Undo
@@ -237,26 +245,12 @@ export default function Campfire({
                 placeholder="What went right today…"
                 className="w-full resize-none rounded-md border border-orange-500/20 bg-black/40 px-2.5 py-1.5 font-serif text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-orange-400/50"
               />
-              <div className="mt-2 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-1">
-                  {(['spirit', 'mind'] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setReflectStat(s)}
-                      className={`rounded-full border px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-wider transition-all ${
-                        reflectStat === s
-                          ? `${STATS[s].textClass} border-current bg-white/5`
-                          : 'border-white/10 text-slate-500 hover:text-slate-300'
-                      }`}
-                    >
-                      {STATS[s].name}
-                    </button>
-                  ))}
-                </div>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <StatPicker value={reflectStat} onChange={setReflectStat} label="Stat for today's win" />
                 <button
                   onClick={bank}
                   disabled={!text.trim()}
-                  className="rounded-md border border-orange-400/40 bg-orange-500/15 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-200 transition-all hover:bg-orange-500/25 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="shrink-0 rounded-md border border-orange-400/40 bg-orange-500/15 px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider text-orange-200 transition-all hover:bg-orange-500/25 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Bank the day
                 </button>
