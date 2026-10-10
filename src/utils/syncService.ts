@@ -1,5 +1,6 @@
 import { supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase';
-import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal } from '../types';
+import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal, CustomPath } from '../types';
+import { mergePaths } from './paths';
 
 export interface SaveStateData {
   version: number;
@@ -14,6 +15,7 @@ export interface SaveStateData {
   debuffs?: Debuff[];
   triggerEvents?: TriggerEvent[];
   traitGoals?: TraitGoal[];
+  customPaths?: CustomPath[];
   deletedIds?: string[];
   liveClock?: boolean;
 }
@@ -317,6 +319,7 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     debuffs: notDeleted(mergedDebuffs),
     triggerEvents: notDeleted(mergedTriggerEvents),
     traitGoals: notDeleted(mergedTraitGoals),
+    customPaths: mergePaths(local.customPaths, remote.customPaths, deletedSet),
     deletedIds: Array.from(deletedSet),
     liveClock: Boolean(local.liveClock || remote.liveClock),
     currentMockDate: mergedCurrentMockDate,

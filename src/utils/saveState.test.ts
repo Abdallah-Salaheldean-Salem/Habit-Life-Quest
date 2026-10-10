@@ -16,6 +16,7 @@ const fields = (over: Partial<SaveFields> = {}): SaveFields => ({
   debuffs: [{ id: 'db1' } as any],
   triggerEvents: [{ id: 'te1' } as any],
   traitGoals: [],
+  customPaths: [],
   deletedIds: ['x'],
   liveClock: true,
   debuffLocalOnly: true,

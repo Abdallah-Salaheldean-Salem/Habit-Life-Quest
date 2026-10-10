@@ -5,7 +5,7 @@
 
 import { SCHEMA_VERSION } from './migrate';
 import { SaveStateData } from './syncService';
-import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal } from '../types';
+import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal, CustomPath } from '../types';
 
 /**
  * Every field the app persists, before it's shaped for a particular target.
@@ -22,6 +22,7 @@ export interface SaveFields {
   debuffs: Debuff[];
   triggerEvents: TriggerEvent[];
   traitGoals: TraitGoal[];
+  customPaths: CustomPath[];
   deletedIds: string[];
   liveClock: boolean;
   debuffLocalOnly: boolean;
@@ -46,6 +47,7 @@ export function buildLocalSave(s: SaveFields) {
     debuffs: s.debuffs,
     triggerEvents: s.triggerEvents,
     traitGoals: s.traitGoals,
+    customPaths: s.customPaths,
     deletedIds: s.deletedIds,
     liveClock: s.liveClock,
     debuffLocalOnly: s.debuffLocalOnly,
@@ -70,6 +72,7 @@ export function buildCloudSave(s: SaveFields): SaveStateData {
     debuffs: s.debuffLocalOnly ? [] : s.debuffs,
     triggerEvents: s.debuffLocalOnly ? [] : s.triggerEvents,
     traitGoals: s.traitGoals,
+    customPaths: s.customPaths,
     deletedIds: s.deletedIds,
     liveClock: s.liveClock,
     currentMockDate: s.currentMockDate,
