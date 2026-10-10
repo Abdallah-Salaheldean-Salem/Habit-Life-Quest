@@ -33,9 +33,47 @@ export function normalizeId(id: string): string {
   return id.trim().toLowerCase();
 }
 
-/** The synthetic email a character ID maps to. */
+/**
+ * The synthetic email a character ID maps to. IDs are Discord-style
+ * (`name#4821`) but `#` isn't safe in an email, so the discriminator separator
+ * is folded to `-` for the auth address. Both the display form (`name#4821`)
+ * and the canonical form (`name-4821`) map to the same email.
+ */
 export function characterEmail(id: string): string {
-  return `${normalizeId(id)}@${SYNTH_DOMAIN}`;
+  const canon = normalizeId(id).replace(/#/g, '-');
+  return `${canon}@${SYNTH_DOMAIN}`;
+}
+
+/** Slug of a character name: a–z0–9 only, capped so `name-####` fits the 24-char id limit. */
+export function slugifyName(name: string): string {
+  const slug = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 15);
+  return slug || 'hero';
+}
+
+/** A random 4-digit discriminator, 1000–9999 (Discord-style). */
+function randomDiscriminator(): string {
+  return String(1000 + Math.floor(Math.random() * 9000));
+}
+
+/**
+ * Build a Discord-style ID from a character name:
+ *   displayId   'shadowknight#4821'  (shown to the user, used to sign in)
+ *   canonicalId 'shadowknight-4821'  (the email-safe auth id)
+ */
+export function generateCharacterId(name: string): { displayId: string; canonicalId: string } {
+  const slug = slugifyName(name);
+  const disc = randomDiscriminator();
+  return { displayId: `${slug}#${disc}`, canonicalId: `${slug}-${disc}` };
+}
+
+/**
+ * Render a stored id in its display form. New accounts already store the
+ * `name#4821` form; this also fixes up any canonical `name-4821` row (the slug
+ * never contains `-`, so the trailing group is unambiguously the discriminator).
+ */
+export function displayId(id: string): string {
+  const s = String(id || '');
+  return s.includes('#') ? s : s.replace(/-(\d{3,5})$/, '#$1');
 }
 
 /** Turn a raw error code/message into something a human can read. */
@@ -48,16 +86,12 @@ function friendly(code: string): string {
   return code || 'Something went wrong. Try again.';
 }
 
-/**
- * Create a new character (ID + password) and sign in. Registration goes through
- * an edge function that admin-creates an already-confirmed user, so no email is
- * sent.
- */
-export async function registerCharacter(
-  id: string,
+/** POST one registration attempt to the edge function. */
+async function postRegister(
+  canonicalId: string,
   password: string,
-): Promise<{ success: boolean; session?: any; error?: string }> {
-  const cleanId = normalizeId(id);
+  display: string,
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/register`, {
       method: 'POST',
@@ -66,7 +100,7 @@ export async function registerCharacter(
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ id: cleanId, password }),
+      body: JSON.stringify({ id: canonicalId, password, characterId: display }),
     });
     let body: any = {};
     try {
@@ -74,21 +108,44 @@ export async function registerCharacter(
     } catch {
       /* ignore */
     }
-    if (!res.ok || body?.error) {
-      return { success: false, error: friendly(body?.error || 'register_failed') };
-    }
+    if (!res.ok || body?.error) return { ok: false, error: body?.error || 'register_failed' };
+    return { ok: true };
   } catch (e: any) {
-    return { success: false, error: e?.message || 'Network error.' };
+    return { ok: false, error: e?.message || 'Network error.' };
   }
-  // Created — now open a session with the password.
-  return signInCharacter(cleanId, password);
+}
+
+/**
+ * Create a new character and sign in. The Character ID is assigned
+ * automatically as `name#4821` (Discord-style) from the character's name; if
+ * that exact ID is taken, a new discriminator is rolled and retried.
+ * Registration goes through an edge function that admin-creates an
+ * already-confirmed user, so no email is sent.
+ */
+export async function registerCharacter(
+  name: string,
+  password: string,
+): Promise<{ success: boolean; session?: any; error?: string; assignedId?: string }> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { displayId: dId, canonicalId } = generateCharacterId(name);
+    const res = await postRegister(canonicalId, password, dId);
+    if (res.ok) {
+      const signed = await signInCharacter(canonicalId, password);
+      return { ...signed, assignedId: dId };
+    }
+    // Only an ID clash is worth retrying with a fresh discriminator; anything
+    // else (weak password, network) should surface immediately.
+    if ((res.error || '').toLowerCase().includes('id_taken')) continue;
+    return { success: false, error: friendly(res.error || 'register_failed') };
+  }
+  return { success: false, error: 'Could not find a free ID — please try again.' };
 }
 
 /** Sign in to an existing character with ID + password. */
 export async function signInCharacter(
   id: string,
   password: string,
-): Promise<{ success: boolean; session?: any; error?: string }> {
+): Promise<{ success: boolean; session?: any; error?: string; assignedId?: string }> {
   const { data, error } = await supabase.auth.signInWithPassword({
     email: characterEmail(id),
     password,
@@ -97,9 +154,10 @@ export async function signInCharacter(
   return { success: true, session: data.session };
 }
 
-/** The character ID for a signed-in user (from metadata, else the synthetic email). */
+/** The character ID (display form) for a signed-in user, from metadata or the email. */
 export function idFromUser(user: any): string {
-  return user?.user_metadata?.character_id || String(user?.email || '').split('@')[0] || '';
+  const raw = user?.user_metadata?.character_id || String(user?.email || '').split('@')[0] || '';
+  return displayId(raw);
 }
 
 
