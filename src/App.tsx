@@ -205,7 +205,7 @@ export default function App() {
   
   // UI states
   const [questViewMode, setQuestViewMode] = useState<'list' | 'tree'>('tree');
-  const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('quests');
+  const [mainTab, setMainTab] = useState<'quests' | 'character' | 'growth'>('character');
   const [questFilter, setQuestFilter] = useState<'all' | StatType>('all');
   const [isAddQuestOpen, setIsAddQuestOpen] = useState(false);
   const [editingQuest, setEditingQuest] = useState<Quest | null>(null);
@@ -2175,8 +2175,8 @@ export default function App() {
         <div className="mb-6 flex justify-center">
           <div className="flex items-center gap-1 rounded-full border border-white/10 bg-[#15152a] p-1">
             {([
-              { key: 'quests', label: 'Quests' },
               { key: 'character', label: 'Character' },
+              { key: 'quests', label: 'Quests' },
               { key: 'growth', label: 'Growth' },
             ] as const).map((t) => (
               <button
