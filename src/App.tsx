@@ -60,6 +60,8 @@ import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
 import PathsView from './components/PathsView';
 import SwipeRow from './components/SwipeRow';
+import ClassPicker from './components/ClassPicker';
+import ClassSprite from './components/ClassSprite';
 import { NODES } from './data/lifeTree';
 import { lifeNodeId, nodeSetsFromQuests, MAX_PATHS } from './utils/paths';
 import { getFeel, setFeel as persistFeel, FeelSettings, celebrateCompletion, celebrateStreak, playSfx, buzz } from './utils/feedback';
@@ -1838,97 +1840,7 @@ export default function App() {
                   <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-3 font-bold">
                     CLASS
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                    {/* WARRIOR */}
-                    <button
-                      type="button"
-                      onClick={() => setCreationClass('warrior')}
-                      className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                        creationClass === 'warrior'
-                          ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
-                          : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                      }`}
-                    >
-                      <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                        WARRIOR
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                        Bonus XP on Body quests
-                      </span>
-                    </button>
-
-                    {/* SCHOLAR */}
-                    <button
-                      type="button"
-                      onClick={() => setCreationClass('scholar')}
-                      className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                        creationClass === 'scholar'
-                          ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
-                          : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                      }`}
-                    >
-                      <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                        SCHOLAR
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                        Bonus XP on Mind quests
-                      </span>
-                    </button>
-
-                    {/* MONK */}
-                    <button
-                      type="button"
-                      onClick={() => setCreationClass('monk')}
-                      className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                        creationClass === 'monk'
-                          ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
-                          : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                      }`}
-                    >
-                      <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                        MONK
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                        Bonus XP on Spirit quests
-                      </span>
-                    </button>
-
-                    {/* GUILDMASTER */}
-                    <button
-                      type="button"
-                      onClick={() => setCreationClass('guildmaster')}
-                      className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                        creationClass === 'guildmaster'
-                          ? 'border-orange-500/50 bg-orange-500/10 text-orange-400'
-                          : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                      }`}
-                    >
-                      <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                        GUILDMASTER
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                        Bonus XP on Career quests
-                      </span>
-                    </button>
-
-                    {/* BARD */}
-                    <button
-                      type="button"
-                      onClick={() => setCreationClass('bard')}
-                      className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-left sm:text-center ${
-                        creationClass === 'bard'
-                          ? 'border-pink-500/50 bg-pink-500/10 text-pink-400'
-                          : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                      }`}
-                    >
-                      <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                        BARD
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                        Bonus XP on Hobby quests
-                      </span>
-                    </button>
-                  </div>
+                  <ClassPicker value={creationClass} onChange={setCreationClass} />
                 </div>
 
                 {/* BEGIN BUTTON */}
@@ -2434,6 +2346,7 @@ export default function App() {
                 </span>
                 
                 <div className="flex items-center gap-1">
+                  <ClassSprite cls={userClass} size={20} idle />
                   <span className="font-mono text-[10px] text-[#d4af37] font-semibold uppercase tracking-wider">
                     {CLASSES[userClass].name}
                   </span>
@@ -3386,97 +3299,7 @@ export default function App() {
                 <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-3 font-bold">
                   CLASS
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                  {/* WARRIOR */}
-                  <button
-                    type="button"
-                    onClick={() => setEditClass('warrior')}
-                    className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                      editClass === 'warrior'
-                        ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-400'
-                        : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                      WARRIOR
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                      Bonus XP on Body quests
-                    </span>
-                  </button>
-
-                  {/* SCHOLAR */}
-                  <button
-                    type="button"
-                    onClick={() => setEditClass('scholar')}
-                    className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                      editClass === 'scholar'
-                        ? 'border-blue-500/50 bg-blue-500/10 text-blue-400'
-                        : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                      SCHOLAR
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                      Bonus XP on Mind quests
-                    </span>
-                  </button>
-
-                  {/* MONK */}
-                  <button
-                    type="button"
-                    onClick={() => setEditClass('monk')}
-                    className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                      editClass === 'monk'
-                        ? 'border-purple-500/50 bg-purple-500/10 text-purple-400'
-                        : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                      MONK
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                      Bonus XP on Spirit quests
-                    </span>
-                  </button>
-
-                  {/* GUILDMASTER */}
-                  <button
-                    type="button"
-                    onClick={() => setEditClass('guildmaster')}
-                    className={`p-4 rounded-lg border text-left transition-all cursor-pointer bg-[#101020]/60 ${
-                      editClass === 'guildmaster'
-                        ? 'border-orange-500/50 bg-orange-500/10 text-orange-400'
-                        : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                      GUILDMASTER
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                      Bonus XP on Career quests
-                    </span>
-                  </button>
-
-                  {/* BARD */}
-                  <button
-                    type="button"
-                    onClick={() => setEditClass('bard')}
-                    className={`sm:col-span-2 p-4 rounded-lg border transition-all cursor-pointer bg-[#101020]/60 text-left sm:text-center ${
-                      editClass === 'bard'
-                        ? 'border-pink-500/50 bg-pink-500/10 text-pink-400'
-                        : 'border-white/5 text-slate-400 hover:border-white/10 hover:text-slate-300'
-                    }`}
-                  >
-                    <span className="font-mono text-xs font-semibold tracking-widest uppercase block mb-0.5">
-                      BARD
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono block leading-relaxed">
-                      Bonus XP on Hobby quests
-                    </span>
-                  </button>
-                </div>
+                <ClassPicker value={editClass} onChange={setEditClass} />
               </div>
 
               {/* DANGER ZONE - RESET PROGRESS */}

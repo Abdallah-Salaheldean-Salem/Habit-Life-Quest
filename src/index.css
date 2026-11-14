@@ -110,3 +110,13 @@ html.campfire body {
   .animate-pop,
   .animate-flare svg { animation: none; }
 }
+
+/* ---- Class sprites: two-frame idle bob (one sprite pixel = 6.25%) ---- */
+@keyframes hq-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6.25%); }
+}
+.sprite-idle { animation: hq-bob 1.1s steps(1, end) infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .sprite-idle { animation: none; }
+}

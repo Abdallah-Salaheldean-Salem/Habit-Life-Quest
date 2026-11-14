@@ -75,7 +75,7 @@ const TYPE_MULTIPLIER: Record<QuestType, number> = {
 };
 
 // Class affinity: +20% on the class's stat.
-const CLASS_BONUS = 1.2;
+export const CLASS_BONUS = 1.2;
 
 export function calculateQuestXp(
   difficulty: QuestDifficulty,
