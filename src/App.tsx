@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense, useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
   Sparkles,
@@ -47,7 +47,10 @@ import {
   Swords,
   Sprout,
   FlaskConical,
-  Lock
+  Lock,
+  Volume2,
+  VolumeX,
+  Leaf
 } from 'lucide-react';
 
 import { Quest, LedgerEntry, UserClass, StatType, STATS, CLASSES, FrictionItem, Debuff, TriggerEvent, TraitGoal, CustomPath, TraitId, TraitCheckin } from './types';
@@ -56,8 +59,11 @@ import RadarChart from './components/RadarChart';
 import Chronicle from './components/Chronicle';
 import TaskSkillTree from './components/TaskSkillTree';
 import PathsView from './components/PathsView';
+import SwipeRow from './components/SwipeRow';
 import { NODES } from './data/lifeTree';
 import { lifeNodeId, nodeSetsFromQuests, MAX_PATHS } from './utils/paths';
+import { getFeel, setFeel as persistFeel, FeelSettings, celebrateCompletion, celebrateStreak, playSfx, buzz } from './utils/feedback';
+import { computeShields, shieldedStreak, streakMilestoneReached, streakMilestoneLine, SHIELD_CAP } from './utils/shields';
 import DiagnosticsPanel from './components/DiagnosticsPanel';
 import DebuffPanel from './components/DebuffPanel';
 import TraitPanel from './components/TraitPanel';
@@ -235,6 +241,18 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // Full-screen celebration shown when a quest crosses into "mastered".
   const [mastery, setMastery] = useState<{ title: string; subtitle: string } | null>(null);
+  // Feel layer (per device): sound is opt-in, Calm mode tones effects down.
+  const [feel, setFeelState] = useState<FeelSettings>(() => getFeel());
+  const updateFeel = (patch: Partial<FeelSettings>) => {
+    const next = { ...feel, ...patch };
+    persistFeel(next);
+    setFeelState(next);
+    if (patch.sound) playSfx('tick');
+  };
+  // A day-streak milestone banner (7 / 30 / 100 / 365) and the quest that was
+  // just completed (drives the ring pop + flame flare on its card).
+  const [streakBanner, setStreakBanner] = useState<number | null>(null);
+  const [justDone, setJustDone] = useState<string | null>(null);
 
   // Cloud Sync Real State
   const [isSyncOpen, setIsSyncOpen] = useState(false);
@@ -724,7 +742,44 @@ export default function App() {
 
   // App-wide active day streak (consecutive days with completions)
   const ledgerDates = ledger.map((e) => e.date);
-  const appWideStreak = getAppWideStreak(ledgerDates, currentMockDate);
+  // Streak shields: a perfect week earns one, a missed day spends one. Derived
+  // from the history, so nothing extra is stored or synced.
+  const shields = useMemo(() => computeShields(ledger.map((e) => e.date), currentMockDate), [ledger, currentMockDate]);
+  const appWideStreak = shieldedStreak(ledgerDates, shields.shieldedDates, currentMockDate);
+
+  // Tell the user once (per device) when a shield is earned or used.
+  useEffect(() => {
+    if (!hasCreatedCharacter) return;
+    const lastUsed = shields.usedOn[shields.usedOn.length - 1] || '';
+    const lastEarned = shields.earnedOn[shields.earnedOn.length - 1] || '';
+    const KEY = 'habitquest:shield-seen';
+    let seen: { used: string; earned: string } | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem(KEY) || 'null');
+    } catch {
+      seen = null;
+    }
+    const remember = () => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify({ used: lastUsed, earned: lastEarned }));
+      } catch {
+        /* ignore */
+      }
+    };
+    if (!seen) {
+      remember();
+      return;
+    }
+    if (lastUsed > seen.used) {
+      const weekday = new Date(`${lastUsed}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+      showToast(`A streak shield covered ${weekday}. Your streak holds.`);
+      playSfx('shield');
+    } else if (lastEarned > seen.earned) {
+      showToast(`Perfect week — you earned a streak shield (${shields.bank}/${SHIELD_CAP}).`);
+      playSfx('shield');
+    }
+    if (lastUsed !== seen.used || lastEarned !== seen.earned) remember();
+  }, [shields, hasCreatedCharacter]);
 
   // Cues resisted — surfaced on the dashboard so the win is visible without
   // opening the debuff panel. A resisted cue is any trigger not acted on.
@@ -746,7 +801,7 @@ export default function App() {
   const xpTrend = xpLast7Days - xpPrev7Days;
 
   // Streak trend
-  const streak7DaysAgo = getAppWideStreak(ledgerDates, getDaysAgoStr(currentMockDate, 7));
+  const streak7DaysAgo = getAppWideStreak([...ledgerDates, ...shields.shieldedDates], getDaysAgoStr(currentMockDate, 7));
   const streakTrend = appWideStreak - streak7DaysAgo;
 
   // Per-stat totals
@@ -1123,6 +1178,8 @@ export default function App() {
           ? 'Milestone conquered.'
           : 'Mastered — thirty days of consistency.';
       setMastery({ title: q.title, subtitle });
+      playSfx('mastery');
+      buzz([30, 60, 30, 60, 80]);
     }
   };
 
@@ -1265,6 +1322,26 @@ export default function App() {
     return ledger.some((entry) => entry.questId === questId);
   };
 
+  // Feel layer for a completion: spark + "+XP" at the tapped control, a ring
+  // pop + flame flare on the card, and a banner when the day streak crosses
+  // 7 / 30 / 100 / 365 days.
+  const afterComplete = (q: Quest, entry: LedgerEntry) => {
+    celebrateCompletion(entry.xp, STATS[q.stat].color, entry.kind === 'minimum' ? 'minimum' : 'full');
+    setJustDone(q.id);
+    setTimeout(() => setJustDone((id) => (id === q.id ? null : id)), 1000);
+    if (ledgerDates.includes(entry.date)) return; // today already counted
+    const dates = [...ledgerDates, entry.date];
+    const after = shieldedStreak(dates, computeShields(dates, currentMockDate).shieldedDates, currentMockDate);
+    const m = streakMilestoneReached(appWideStreak, after);
+    if (!m) return;
+    setStreakBanner(m);
+    setTimeout(() => {
+      const r = document.getElementById('streak-banner')?.getBoundingClientRect();
+      celebrateStreak(r ? r.left + 30 : window.innerWidth / 2, r ? r.top + r.height / 2 : 90);
+    }, 80);
+    setTimeout(() => setStreakBanner((cur) => (cur === m ? null : cur)), 4500);
+  };
+
   // Click handler for check circle: "did I log this today?"
   const handleToggleCheckCircle = (q: Quest) => {
     const alreadyLoggedToday = isLoggedToday(q.id);
@@ -1280,12 +1357,14 @@ export default function App() {
       });
       setLedger([...ledger, entry]);
       maybeCelebrateMastery(q, entry);
+      afterComplete(q, entry);
       showToast(toast(entry.xp));
     };
 
     if (q.type === 'daily') {
       if (alreadyLoggedToday) {
         setLedger(removeDayCompletions(ledger, q.id, currentMockDate));
+        playSfx('undo');
         showToast(`Removed today's log for "${q.title}"`);
       } else {
         logComplete((xp) => `Earned +${xp} XP! "${q.title}" logged`);
@@ -1295,6 +1374,7 @@ export default function App() {
       // one of today's logs.
       if (alreadyLoggedToday) {
         setLedger(removeOneCompletion(ledger, q.id, currentMockDate));
+        playSfx('undo');
         showToast(`Undone today's log for "${q.title}"`);
       } else {
         logComplete((xp) => `Earned +${xp} XP! "${q.title}" logged today`);
@@ -1303,6 +1383,7 @@ export default function App() {
       // Milestones are done once and cleared forever.
       if (isMilestoneSatisfied(q.id)) {
         setLedger(removeAllCompletions(ledger, q.id));
+        playSfx('undo');
         showToast(`Reset milestone "${q.title}" to unfinished`);
       } else {
         logComplete((xp) => `Milestone Complete! Earned +${xp} XP!`);
@@ -1329,6 +1410,7 @@ export default function App() {
     });
     setLedger([...ledger, entry]);
     maybeCelebrateMastery(q, entry);
+    afterComplete(q, entry);
     const min = q.intention?.minVersion;
     showToast(min ? `Never zero — did the minimum: ${min}. +${entry.xp} XP, streak kept.` : `Never zero — minimum logged. +${entry.xp} XP, streak kept.`);
 
@@ -2011,6 +2093,21 @@ export default function App() {
         </Suspense>
       )}
 
+      {/* STREAK MILESTONE BANNER — medium celebration (7 / 30 / 100 / 365 days) */}
+      {streakBanner && (
+        <div
+          id="streak-banner"
+          role="status"
+          className="fixed top-[calc(env(safe-area-inset-top)+4.25rem)] left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] sm:w-auto max-w-md flex items-center gap-3 rounded-xl border border-orange-500/45 bg-[#1a0f0a]/95 px-4 py-3 shadow-[0_0_28px_rgba(234,88,12,0.25)] animate-fade-in"
+        >
+          <Flame className="w-6 h-6 text-orange-400 shrink-0" />
+          <div className="min-w-0">
+            <p className="font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-orange-300">{streakBanner}-day streak</p>
+            <p className="font-serif italic text-sm text-orange-100">{streakMilestoneLine(streakBanner)}</p>
+          </div>
+        </div>
+      )}
+
       {/* HEADER BAR */}
       <header className="border-b border-[#d4af37]/30 bg-[#15152a]/90 backdrop-blur-md sticky top-0 z-30 pt-[env(safe-area-inset-top)]">
         <div className="relative max-w-7xl mx-auto px-4 h-14 sm:h-16 flex items-center justify-between gap-2">
@@ -2052,6 +2149,28 @@ export default function App() {
               title="Reminders"
             >
               <Bell className="w-4 h-4" />
+            </button>
+
+            {/* Sound + Calm (tablet/desktop; phones use the ⋯ menu) */}
+            <button
+              onClick={() => updateFeel({ sound: !feel.sound })}
+              aria-pressed={feel.sound}
+              className={`hidden sm:block p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
+                feel.sound ? 'border-[#d4af37]/40 text-[#d4af37]' : 'border-white/10 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37]'
+              }`}
+              title={feel.sound ? 'Sound on' : 'Sound off'}
+            >
+              {feel.sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={() => updateFeel({ calm: !feel.calm })}
+              aria-pressed={feel.calm}
+              className={`hidden sm:block p-1.5 rounded-full border bg-[#1a1a2e]/50 transition-all cursor-pointer ${
+                feel.calm ? 'border-[#d4af37]/40 text-[#d4af37]' : 'border-white/10 text-[#e0e0e0]/70 hover:border-[#d4af37]/40 hover:text-[#d4af37]'
+              }`}
+              title={feel.calm ? 'Calm mode on — fewer effects' : 'Calm mode off'}
+            >
+              <Leaf className="w-4 h-4" />
             </button>
 
             {/* Theme Toggle */}
@@ -2251,6 +2370,8 @@ export default function App() {
                     { icon: Download, label: 'Install app', onClick: handleInstallApp },
                     { icon: Bell, label: reminders.enabled ? 'Reminders · on' : 'Reminders', onClick: () => setIsRemindersOpen(true), active: reminders.enabled },
                     { icon: theme === 'dark' ? Sun : Moon, label: theme === 'dark' ? 'Light theme' : 'Dark theme', onClick: () => setTheme(theme === 'dark' ? 'light' : 'dark') },
+                    { icon: feel.sound ? Volume2 : VolumeX, label: feel.sound ? 'Sound · on' : 'Sound · off', onClick: () => updateFeel({ sound: !feel.sound }), active: feel.sound },
+                    { icon: Leaf, label: feel.calm ? 'Calm mode · on' : 'Calm mode · off', onClick: () => updateFeel({ calm: !feel.calm }), active: feel.calm },
                     { icon: FlaskConical, label: 'Diagnostics', onClick: () => setIsDiagOpen(true) },
                   ].map(({ icon: Icon, label, onClick, active }) => (
                     <button
@@ -2442,6 +2563,16 @@ export default function App() {
                       {appWideStreak}
                     </span>
                     <Flame className={`w-4 h-4 text-[#d4af37] ${appWideStreak > 0 ? 'animate-pulse' : 'opacity-30'}`} />
+                    {shields.bank > 0 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 font-mono text-[10px] font-bold text-sky-300"
+                        title={`${shields.bank} streak shield${shields.bank > 1 ? 's' : ''} ready — a missed day uses one automatically`}
+                        aria-label={`${shields.bank} streak shield${shields.bank > 1 ? 's' : ''} ready`}
+                      >
+                        <Shield className="w-3 h-3" />
+                        {shields.bank}
+                      </span>
+                    )}
                     {streakTrend !== 0 && (
                       <span className={`text-[10px] font-bold flex items-center ${streakTrend > 0 ? 'text-emerald-400' : 'text-rose-400'}`} title={`Streak compared to 7 days ago (${streakTrend > 0 ? '+' : ''}${streakTrend})`}>
                         {streakTrend > 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
@@ -2756,8 +2887,8 @@ export default function App() {
                       const todayIsMin = ledger.some((e) => e.questId === q.id && e.date === currentMockDate && e.kind === 'minimum');
 
                       return (
+                        <SwipeRow key={q.id} disabled={completedToday} onComplete={() => handleToggleCheckCircle(q)} onMinimum={() => handleLogMinimum(q)}>
                         <div
-                          key={q.id}
                           className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             completedToday
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65'
@@ -2778,7 +2909,7 @@ export default function App() {
                                 title="Log a full completion"
                               >
                                 {completedToday ? (
-                                  <CheckCircle2 className="w-5 h-5" style={{ color: config.color }} />
+                                  <CheckCircle2 className={`w-5 h-5 ${justDone === q.id ? 'animate-pop' : ''}`} style={{ color: config.color }} />
                                 ) : (
                                   <Circle className="w-5 h-5 hover:scale-105 transition-transform" style={{ color: config.color }} />
                                 )}
@@ -2819,7 +2950,7 @@ export default function App() {
                               <span className="meta-sep">{q.difficulty}</span>
                               {streak > 0 && (
                                 <>
-                                  <span className="meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
+                                  <span className={`meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold ${justDone === q.id ? 'animate-flare' : ''}`}>
                                     <Flame className="w-2.5 h-2.5" /> {streak} {streak === 1 ? 'day' : 'days'}
                                   </span>
                                 </>
@@ -2845,6 +2976,7 @@ export default function App() {
                             </button>
                           </div>
                         </div>
+                        </SwipeRow>
                       );
                     })}
                   </div>
@@ -2876,8 +3008,8 @@ export default function App() {
                       const todayIsMin = ledger.some((e) => e.questId === q.id && e.date === currentMockDate && e.kind === 'minimum');
 
                       return (
+                        <SwipeRow key={q.id} disabled={loggedToday} onComplete={() => handleToggleCheckCircle(q)} onMinimum={() => handleLogMinimum(q)}>
                         <div
-                          key={q.id}
                           className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             satisfiedThisWeek
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65 font-light'
@@ -2898,7 +3030,7 @@ export default function App() {
                                 title="Log a full completion"
                               >
                                 {loggedToday ? (
-                                  <CheckCircle2 className="w-5 h-5" style={{ color: config.color }} />
+                                  <CheckCircle2 className={`w-5 h-5 ${justDone === q.id ? 'animate-pop' : ''}`} style={{ color: config.color }} />
                                 ) : satisfiedThisWeek ? (
                                   <CheckCircle2 className="w-5 h-5 opacity-50" style={{ color: config.color }} />
                                 ) : (
@@ -2944,7 +3076,7 @@ export default function App() {
                               </span>
                               {streak > 0 && (
                                 <>
-                                  <span className="meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold">
+                                  <span className={`meta-sep text-[#d4af37]/90 flex items-center gap-0.5 lowercase font-bold ${justDone === q.id ? 'animate-flare' : ''}`}>
                                     <Flame className="w-2.5 h-2.5" /> {streak} {streak === 1 ? 'week' : 'weeks'}
                                   </span>
                                 </>
@@ -2970,6 +3102,7 @@ export default function App() {
                             </button>
                           </div>
                         </div>
+                        </SwipeRow>
                       );
                     })}
                   </div>
@@ -2997,8 +3130,8 @@ export default function App() {
                       const baseChanceXp = calculateQuestXp(q.difficulty, q.type, q.stat, userClass);
 
                       return (
+                        <SwipeRow key={q.id} disabled={cleared} onComplete={() => handleToggleCheckCircle(q)}>
                         <div
-                          key={q.id}
                           className={`flex items-start sm:items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-lg border transition-all ${
                             cleared
                               ? 'bg-[#0c0c1b]/85 border-white/5 opacity-65 font-light'
@@ -3015,7 +3148,7 @@ export default function App() {
                             className="text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
                           >
                             {cleared ? (
-                              <CheckCircle2 className="w-5.5 h-5.5" style={{ color: config.color }} />
+                              <CheckCircle2 className={`w-5.5 h-5.5 ${justDone === q.id ? 'animate-pop' : ''}`} style={{ color: config.color }} />
                             ) : (
                               <Circle className="w-5.5 h-5.5 hover:scale-105 transition-transform" style={{ color: config.color }} />
                             )}
@@ -3069,6 +3202,7 @@ export default function App() {
                             </button>
                           </div>
                         </div>
+                        </SwipeRow>
                       );
                     })}
                   </div>
@@ -3169,7 +3303,7 @@ export default function App() {
 
             {/* CHRONICLE PANEL */}
             <div className={`order-8 lg:order-none ${show('character')}`}>
-              <Chronicle ledger={ledger} todayStr={currentMockDate} />
+              <Chronicle ledger={ledger} todayStr={currentMockDate} shieldedDates={shields.shieldedDates} shieldBank={shields.bank} />
             </div>
 
           </div>
