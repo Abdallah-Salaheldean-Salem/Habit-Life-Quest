@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Lock, Check, Pencil, Hammer, GitBranch, ScrollText, Feather, Upload, FileText, X } from 'lucide-react';
 import { CustomPath, QuestDraft, STATS, UserClass } from '../types';
 import { TIER_LABEL, TIER_NAME } from '../data/lifeTree';
@@ -11,6 +11,7 @@ import { MAX_PATHS, MAX_TIERS, nodeStatus, pathNodeToDraft, pathPercent, PathNod
 import { importPaths, describeImport, parsePathFile } from '../utils/pathImport';
 import { buildPathImportGuide } from '../utils/pathTemplate';
 import { layoutPathTree, LaidCard } from '../utils/pathLayout';
+import { burst, playSfx, buzz, getFeel, prefersReducedMotion } from '../utils/feedback';
 
 // ---------------------------------------------------------
 // MY PATHS — user-forged skill trees.
@@ -203,6 +204,137 @@ function PathTree({
   const layout = width ? layoutPathTree(path, masteredNodeIds, width) : null;
   const percent = pathPercent(path, masteredNodeIds);
 
+  const treeRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const masteredHere = path.nodes.filter((n) => masteredNodeIds.has(n.id)).map((n) => n.id).sort();
+  const masteredKey = masteredHere.join(',');
+
+  // Living tree: play what changed since this path was last seen on this
+  // device — light runs from a newly mastered node to the root, then a newly
+  // revealed tier breaks its seal and grows in. Runs once, when the tree is
+  // actually on screen; the first sight of a path just records its state.
+  useEffect(() => {
+    const host = treeRef.current;
+    if (!layout || !host) return;
+    const KEY = `habitquest:path-seen:${path.id}`;
+    let seen: { frontier: number; mastered: string[] } | null = null;
+    try {
+      seen = JSON.parse(localStorage.getItem(KEY) || 'null');
+    } catch {
+      seen = null;
+    }
+    const now = { frontier: layout.frontier, mastered: masteredHere };
+    const remember = () => {
+      try {
+        localStorage.setItem(KEY, JSON.stringify(now));
+      } catch {
+        /* ignore */
+      }
+    };
+    if (!seen) return remember();
+    const newMastered = masteredHere.filter((id) => !seen!.mastered.includes(id));
+    const newTiers = new Set(
+      layout.cards.filter((c) => c.kind === 'node' && c.tier > seen!.frontier).map((c) => c.tier),
+    );
+    if (!newMastered.length && !newTiers.size) return remember();
+
+    let cancelled = false;
+    const reduced = prefersReducedMotion();
+    const calm = getFeel().calm;
+    const toScreen = (x: number, y: number) => {
+      const r = host.getBoundingClientRect();
+      return { x: r.left + x, y: r.top + y };
+    };
+    const wait = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+    const travel = (pathEl: SVGPathElement, ms: number) =>
+      new Promise<void>((res) => {
+        const svg = svgRef.current;
+        if (!svg) return res();
+        const orb = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        orb.setAttribute('r', '5');
+        orb.setAttribute('fill', '#fef3c7');
+        orb.style.filter = `drop-shadow(0 0 6px ${color})`;
+        svg.appendChild(orb);
+        const L = pathEl.getTotalLength();
+        const t0 = performance.now();
+        const step = (t: number) => {
+          const k = Math.min(1, (t - t0) / ms);
+          const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
+          const pt = pathEl.getPointAtLength(L * e);
+          orb.setAttribute('cx', String(pt.x));
+          orb.setAttribute('cy', String(pt.y));
+          if (k < 1 && !cancelled) requestAnimationFrame(step);
+          else {
+            orb.remove();
+            res();
+          }
+        };
+        requestAnimationFrame(step);
+      });
+
+    const play = async () => {
+      // 1) Newly mastered nodes: gold spark, light down the branch, root pulse.
+      for (const id of newMastered) {
+        const card = layout.cards.find((c) => c.node?.id === id);
+        const branchEl = host.querySelector<SVGPathElement>(`path[data-branch="${id}"]`);
+        if (!card) continue;
+        const c = toScreen(card.x + card.w / 2, card.y + card.h / 2);
+        burst(c.x, c.y, ['#d4af37', '#f3e5ab', color], { count: 16 });
+        playSfx('tick');
+        if (!reduced && !calm && branchEl) await travel(branchEl, 700);
+        if (cancelled) return;
+        const root = host.querySelector<HTMLElement>('[data-root]');
+        root?.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }], { duration: reduced ? 1 : 450, easing: 'ease-out' });
+        const r = toScreen(layout.root.x, layout.root.y);
+        burst(r.x, r.y, [color, '#f3e5ab'], { count: 12, speed: 0.16 });
+      }
+      if (cancelled || !newTiers.size) return;
+      // 2) The seal breaks; the new tier grows in and its branches draw.
+      await wait(reduced ? 0 : 150);
+      const fresh = layout.cards.filter((c) => c.kind === 'node' && newTiers.has(c.tier));
+      const minX = Math.min(...fresh.map((c) => c.x)), maxX = Math.max(...fresh.map((c) => c.x + c.w));
+      const minY = Math.min(...fresh.map((c) => c.y)), maxY = Math.max(...fresh.map((c) => c.y + c.h));
+      const mid = toScreen((minX + maxX) / 2, (minY + maxY) / 2);
+      burst(mid.x, mid.y, ['#d4af37', color, '#f3e5ab'], { count: 40, speed: 0.3, life: 900, gravity: 0.0002 });
+      playSfx('seal');
+      buzz([20, 30, 40]);
+      fresh.forEach((c, i) => {
+        const el = host.querySelector<HTMLElement>(`[data-node="${c.node!.id}"]`);
+        el?.animate(
+          [
+            { transform: 'scale(.6)', opacity: 0 },
+            { transform: 'scale(1.04)', opacity: 1, offset: 0.7 },
+            { transform: 'scale(1)', opacity: 1 },
+          ],
+          { duration: reduced ? 1 : 460, delay: reduced ? 0 : 120 * i, easing: 'cubic-bezier(.2,.9,.25,1.2)', fill: 'backwards' },
+        );
+        const b = host.querySelector<SVGPathElement>(`path[data-branch="${c.node!.id}"]`);
+        if (b && !reduced) {
+          const L = b.getTotalLength();
+          b.animate([{ strokeDasharray: `${L}`, strokeDashoffset: `${L}` }, { strokeDasharray: `${L}`, strokeDashoffset: '0' }], { duration: 480, delay: 120 * i, easing: 'ease-out', fill: 'backwards' });
+        }
+      });
+    };
+
+    // Wait until the tree is actually visible (another tab may be open).
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        io.disconnect();
+        remember();
+        void play();
+      },
+      { threshold: 0.25 },
+    );
+    io.observe(host);
+    return () => {
+      cancelled = true;
+      io.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout?.frontier, masteredKey, path.id, width > 0]);
+
   // A soft S-curve from a card's bottom-centre down to its junction.
   const branch = (c: LaidCard) => {
     const x1 = c.x + c.w / 2;
@@ -215,8 +347,8 @@ function PathTree({
   return (
     <div ref={ref} className="w-full">
       {layout && (
-        <div className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
-          <svg className="absolute inset-0" width={layout.width} height={layout.height} style={{ pointerEvents: 'none' }} aria-hidden>
+        <div ref={treeRef} className="relative mx-auto" style={{ width: layout.width, height: layout.height }}>
+          <svg ref={svgRef} className="absolute inset-0" width={layout.width} height={layout.height} style={{ pointerEvents: 'none' }} aria-hidden>
             {layout.trunk.map((t, i) => (
               <line
                 key={`t${i}`}
@@ -233,6 +365,7 @@ function PathTree({
             {layout.cards.map((c, i) => (
               <path
                 key={`b${i}`}
+                data-branch={c.node?.id ?? `locked-${c.tier}`}
                 d={branch(c)}
                 fill="none"
                 stroke={c.kind === 'locked' ? 'rgba(255,255,255,0.14)' : color}
@@ -282,6 +415,7 @@ function PathTree({
 
           {/* Root — the path itself */}
           <div
+            data-root
             className="absolute z-20 rounded-full border-2 bg-[#15152a] flex flex-col items-center justify-center text-center px-2"
             style={{
               left: layout.root.x - layout.root.r,
@@ -317,14 +451,18 @@ function PathTreeCard({
 }) {
   const node = card.node!;
   const color = STATS[path.stat].color;
+  // Mastered nodes glow gold, the same as the built-in tree's mastery check.
+  const mastered = status === 'mastered';
+  const edge = mastered ? '#d4af37' : color;
   const meta = `${node.type} · ${node.difficulty}${node.type === 'weekly' ? ` · ${node.target}×/wk` : ''}`;
   return (
     <button
       type="button"
+      data-node={node.id}
       onClick={() => onAddQuest(pathNodeToDraft(node, path))}
       title={`${node.description ?? node.title}\n\nTap to add this quest.`}
       className="absolute z-10 rounded-lg border bg-[#15152a] hover:bg-[#1a1a2e] flex flex-col items-center justify-center text-center px-2 transition-all cursor-pointer hover:scale-[1.03] active:scale-[0.98]"
-      style={{ left: card.x, top: card.y, width: card.w, height: card.h, borderColor: color, boxShadow: `0 0 10px ${color}22` }}
+      style={{ left: card.x, top: card.y, width: card.w, height: card.h, borderColor: edge, boxShadow: mastered ? '0 0 16px rgba(212,175,55,0.35)' : `0 0 10px ${color}22` }}
     >
       <span
         className="absolute -top-2 -left-2 w-5 h-5 rounded-full bg-[#050510] border flex items-center justify-center font-mono text-[8px] font-bold"

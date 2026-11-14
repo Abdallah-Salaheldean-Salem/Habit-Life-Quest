@@ -3,14 +3,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React from 'react';
-import { Flame } from 'lucide-react';
-import { LedgerEntry } from '../types';
+import React, { useState } from 'react';
+import { Flame, Shield, X } from 'lucide-react';
+import { LedgerEntry, STATS } from '../types';
+import { dayReplay } from '../utils/dayReplay';
 import { getAppWideStreak, getDaysAgoStr, getMonday } from '../utils/logic';
 
 interface ChronicleProps {
   ledger: LedgerEntry[];
   todayStr: string;
+  /** Missed days a streak shield covered — counted as kept, drawn in blue. */
+  shieldedDates?: Set<string>;
+  /** Shields banked and ready. */
+  shieldBank?: number;
 }
 
 const WEEKS = 15;
@@ -33,7 +38,9 @@ const LEVEL_STYLE: Record<number, string> = {
   4: 'bg-[#d4af37] border-[#f3e5ab]',
 };
 
-export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
+export default function Chronicle({ ledger, todayStr, shieldedDates = new Set(), shieldBank = 0 }: ChronicleProps) {
+  // The day being replayed (tap a square), or null.
+  const [selected, setSelected] = useState<string | null>(null);
   // Sum XP per day.
   const dailyXp = new Map<string, number>();
   for (const entry of ledger) {
@@ -63,7 +70,9 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
   }
   const consistencyPct = Math.round((last30Active / 30) * 100);
 
-  const streak = getAppWideStreak(Array.from(dailyXp.keys()), todayStr);
+  const streak = getAppWideStreak([...dailyXp.keys(), ...shieldedDates], todayStr);
+  const replay = selected ? dayReplay(ledger, selected) : null;
+  const fmtDay = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
   return (
     <div id="chronicle-panel" className="bg-[#15152a] border border-[#d4af37]/20 rounded-xl p-4 sm:p-6 shadow-[0_0_15px_rgba(212,175,55,0.05)]">
@@ -77,6 +86,12 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
           <span>
             <span className="text-[#d4af37] font-bold">{streak}</span> day streak
           </span>
+          {shieldBank > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-sky-300" title={`${shieldBank} streak shield${shieldBank > 1 ? 's' : ''} ready`}>
+              <Shield className="w-3 h-3" />
+              {shieldBank}
+            </span>
+          )}
         </div>
       </div>
 
@@ -102,7 +117,7 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
           {/* Day-of-week labels */}
           <div className="flex flex-col gap-[3px] mr-1">
             {DAY_LABELS.map((label, i) => (
-              <div key={i} className="h-3 flex items-center">
+              <div key={i} className="h-4 sm:h-3 flex items-center">
                 <span className="font-mono text-[7px] text-slate-600 uppercase pr-1">{label}</span>
               </div>
             ))}
@@ -110,19 +125,68 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
 
           {weeks.map((col, wi) => (
             <div key={wi} className="flex flex-col gap-[3px]">
-              {col.map((cell) => (
-                <div
-                  key={cell.date}
-                  title={cell.future ? cell.date : `${cell.date} · ${cell.xp} XP`}
-                  className={`w-3 h-3 rounded-sm border ${
-                    cell.future ? 'bg-transparent border-transparent' : LEVEL_STYLE[intensity(cell.xp)]
-                  }`}
-                />
-              ))}
+              {col.map((cell) =>
+                cell.future ? (
+                  <div key={cell.date} className="w-4 h-4 sm:w-3 sm:h-3" aria-hidden />
+                ) : (
+                  <button
+                    key={cell.date}
+                    type="button"
+                    onClick={() => setSelected(selected === cell.date ? null : cell.date)}
+                    aria-pressed={selected === cell.date}
+                    aria-label={`${fmtDay(cell.date)}: ${cell.xp} XP${shieldedDates.has(cell.date) ? ', covered by a shield' : ''}`}
+                    title={`${cell.date} · ${cell.xp} XP${shieldedDates.has(cell.date) ? ' · shield' : ''}`}
+                    className={`w-4 h-4 sm:w-3 sm:h-3 rounded-sm border cursor-pointer transition-transform hover:scale-125 ${
+                      shieldedDates.has(cell.date) ? 'bg-sky-500/15 border-sky-400/70' : LEVEL_STYLE[intensity(cell.xp)]
+                    } ${selected === cell.date ? 'ring-2 ring-[#f3e5ab] ring-offset-1 ring-offset-[#15152a]' : ''}`}
+                  />
+                ),
+              )}
             </div>
           ))}
         </div>
       </div>
+
+      {/* Day replay — what happened on the tapped day */}
+      {replay ? (
+        <div className="mt-3 rounded-lg border border-white/5 bg-[#1a1a2e] p-3 animate-fade-in" aria-live="polite">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h4 className="font-serif text-sm text-[#d4af37] tracking-wide">{fmtDay(replay.date)}</h4>
+              <p className="font-mono text-[9px] text-slate-500 uppercase tracking-wider mt-0.5">
+                {replay.quests.length} quest{replay.quests.length === 1 ? '' : 's'} · {replay.totalXp} XP
+                {shieldedDates.has(replay.date) && <span className="text-sky-300"> · covered by a shield</span>}
+              </p>
+            </div>
+            <button type="button" onClick={() => setSelected(null)} className="p-1 text-slate-500 hover:text-[#d4af37] cursor-pointer" aria-label="Close day replay">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {replay.quests.length + replay.other.length === 0 && !replay.win ? (
+            <p className="mt-2 font-sans text-xs text-slate-500">
+              {shieldedDates.has(replay.date) ? 'A rest day — your shield kept the streak alive.' : 'Nothing logged this day.'}
+            </p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {[...replay.quests, ...replay.other].map((q, i) => (
+                <li key={i} className="flex items-center gap-2 text-xs text-slate-200">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: STATS[q.stat].color }} />
+                  <span className="min-w-0 truncate">{q.title}</span>
+                  {'minimum' in q && q.minimum && <span className="font-mono text-[8px] uppercase text-[#d4af37]/70">min</span>}
+                  <span className="ml-auto font-mono text-[9px] text-slate-400 tabular-nums">+{q.xp}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {replay.win && (
+            <p className="mt-2 border-t border-white/5 pt-2 font-serif italic text-xs text-orange-100/90">
+              “{replay.win.text}” <span className="not-italic font-mono text-[8px] uppercase tracking-wider" style={{ color: STATS[replay.win.stat].color }}>· {STATS[replay.win.stat].name}</span>
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-2 font-mono text-[8px] text-slate-600 uppercase tracking-wider">Tap a day to replay it</p>
+      )}
 
       {/* Footer: total active days + legend */}
       <div className="flex items-center justify-between mt-4 font-mono text-[8px] text-slate-500 uppercase">
@@ -135,6 +199,8 @@ export default function Chronicle({ ledger, todayStr }: ChronicleProps) {
             <div key={lvl} className={`w-3 h-3 rounded-sm border ${LEVEL_STYLE[lvl]}`} />
           ))}
           <span>More</span>
+          <span className="w-3 h-3 rounded-sm border bg-sky-500/15 border-sky-400/70 ml-1" aria-hidden />
+          <span>Shield</span>
         </div>
       </div>
     </div>
