@@ -187,7 +187,7 @@ function useWidth<T extends HTMLElement>() {
  * sealed tier. Deeper tiers stay hidden until earned, exactly like the
  * built-in tree.
  */
-function PathTree({
+export function PathTree({
   path,
   masteredNodeIds,
   activeNodeIds,
