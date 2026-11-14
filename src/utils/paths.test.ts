@@ -18,6 +18,7 @@ import {
   PATH_TEMPLATES,
   mergePaths,
   MAX_NODES_PER_TIER,
+  lifeBranchPath,
 } from './paths';
 import { CustomPath, PathNode, Quest } from '../types';
 import { NODES } from '../data/lifeTree';
@@ -183,5 +184,31 @@ describe('sync + migration', () => {
     const m = migrate({ version: 9, quests: [], ledger: [] });
     expect(m.version).toBe(SCHEMA_VERSION);
     expect(m.customPaths).toEqual([]);
+  });
+});
+
+describe('lifeBranchPath (phone skill tree)', () => {
+  it('turns each built-in branch into a drawable path with stable life ids', () => {
+    for (const stat of ['body', 'mind', 'career', 'spirit', 'hobby'] as const) {
+      const p = lifeBranchPath(stat);
+      const src = NODES.filter((n) => n.stat === stat);
+      expect(p.nodes.length).toBe(src.length);
+      expect(p.nodes.every((n) => n.id.startsWith(`life:${stat}:`))).toBe(true);
+      expect(p.nodes.some((n) => n.tier === 1)).toBe(true);
+    }
+  });
+
+  it('a node tapped on the phone tree adds the same quest as the desktop tree', () => {
+    const p = lifeBranchPath('mind');
+    const node = p.nodes.find((n) => n.title === 'Read 10 pages')!;
+    const draft = pathNodeToDraft(node, p);
+    expect(draft).toMatchObject({ title: 'Read 10 pages', stat: 'mind', tier: 1, type: 'daily', nodeId: lifeNodeId({ stat: 'mind', title: 'Read 10 pages' }) });
+  });
+
+  it('reveals like the desktop tree: mastering a Foundation node opens Consistency', () => {
+    const p = lifeBranchPath('body');
+    const t1 = p.nodes.find((n) => n.tier === 1)!;
+    expect(pathFrontier(p, new Set())).toBe(1);
+    expect(pathFrontier(p, new Set([t1.id]))).toBe(2);
   });
 });

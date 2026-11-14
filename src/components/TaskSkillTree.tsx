@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Plus, ChevronDown, ChevronRight, Swords, Lock, Check, Sunrise } from 'lucide-react';
-import { StatType, STATS, QuestDifficulty, QuestType, QuestDraft } from '../types';
+import { ChevronDown, ChevronRight, Swords, Lock, Check, Sunrise } from 'lucide-react';
+import { StatType, STATS, QuestDraft } from '../types';
 
 import { NODES, NodeData, TIER_LABEL, TIER_NAME, BRANCH_ORDER, TIERS } from '../data/lifeTree';
-import { lifeNodeId } from '../utils/paths';
+import { lifeNodeId, lifeBranchPath } from '../utils/paths';
+import { PathTree } from './PathsView';
 
 function nodeToDraft(n: NodeData): QuestDraft {
   return {
@@ -16,164 +17,6 @@ function nodeToDraft(n: NodeData): QuestDraft {
     description: n.description,
     nodeId: lifeNodeId(n),
   };
-}
-
-type NodeStatus = 'mastered' | 'active' | 'available';
-
-function NodeCard({
-  node,
-  status,
-  onAddQuest,
-}: {
-  node: NodeData;
-  status: NodeStatus;
-  onAddQuest: (q: QuestDraft) => void;
-}) {
-  const config = STATS[node.stat];
-  const mastered = status === 'mastered';
-  const active = status === 'active';
-  return (
-    <button
-      type="button"
-      onClick={() => onAddQuest(nodeToDraft(node))}
-      title={`${node.description}\n\nTap to add this quest.`}
-      className="w-full text-left bg-[#1a1a2e] hover:bg-[#1e1e36] active:bg-[#1e1e36] border border-white/5 rounded-md p-2 transition-all group"
-      style={{ borderLeftColor: config.color, borderLeftWidth: 3 }}
-    >
-      <div className="flex items-start justify-between gap-1.5">
-        <h5 className="font-semibold text-[11px] leading-tight" style={{ color: config.color }}>
-          {node.title}
-        </h5>
-        {mastered ? (
-          <span title="Mastered" className="shrink-0 mt-0.5">
-            <Check className="w-3 h-3 text-[#d4af37]" />
-          </span>
-        ) : (
-          <Plus className="w-3 h-3 text-slate-600 group-hover:text-white shrink-0 mt-0.5" />
-        )}
-      </div>
-      <div className="flex flex-wrap items-center gap-1 mt-1 font-mono text-[7px] text-slate-500 uppercase tracking-wide">
-        <span>{node.type}</span>
-        <span>·</span>
-        <span>{node.difficulty}</span>
-        {node.type === 'weekly' && (
-          <>
-            <span>·</span>
-            <span>{node.target}×/wk</span>
-          </>
-        )}
-        {mastered && <span className="text-[#d4af37] normal-case">· mastered</span>}
-        {active && <span className="text-emerald-400/70 normal-case">· on board</span>}
-        {!mastered && !active && node.v1 && <span className="text-slate-600 normal-case">· v1</span>}
-      </div>
-    </button>
-  );
-}
-
-function LockedTier({ config, tier, prevTierName, count }: { config: (typeof STATS)[StatType]; tier: number; prevTierName: string; count: number }) {
-  return (
-    <div>
-      <div className="flex items-center gap-1.5 mb-1.5 opacity-50">
-        <span className="w-4 h-4 rounded-full border border-white/15 bg-[#050510] flex items-center justify-center shrink-0">
-          <Lock className="w-2 h-2 text-slate-500" />
-        </span>
-        <span className="font-mono text-[7px] text-slate-600 uppercase tracking-widest">
-          {TIER_LABEL[tier]} · {TIER_NAME[tier]}
-        </span>
-      </div>
-      <div className="bg-[#0c0c1b]/60 border border-dashed border-white/10 rounded-md p-2.5 text-center">
-        <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider leading-relaxed">
-          {count} node{count > 1 ? 's' : ''} locked
-        </p>
-        <p className="font-mono text-[8px] text-slate-600 leading-relaxed mt-0.5">
-          Master a <span style={{ color: config.color }}>{prevTierName}</span> node to reveal
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function BranchColumn({
-  stat,
-  onAddQuest,
-  masteredTitles,
-  activeTitles,
-}: {
-  stat: StatType;
-  onAddQuest: (q: QuestDraft) => void;
-  masteredTitles: Set<string>;
-  activeTitles: Set<string>;
-}) {
-  const config = STATS[stat];
-  const branchNodes = NODES.filter((n) => n.stat === stat);
-
-  // Progressive reveal: a tier is "cleared" once at least one of its nodes is
-  // mastered. Tier I is always available; the frontier is the first uncleared
-  // tier. Tiers up to the frontier are shown; the very next one is teased as
-  // locked; anything deeper stays hidden until you get there.
-  let cleared = 0;
-  for (const tier of TIERS) {
-    const tierNodes = branchNodes.filter((n) => n.tier === tier);
-    if (tierNodes.length === 0) continue;
-    if (tierNodes.some((n) => masteredTitles.has(n.title))) cleared = tier;
-    else break;
-  }
-  const frontier = cleared + 1;
-
-  const statusOf = (n: NodeData): NodeStatus =>
-    masteredTitles.has(n.title) ? 'mastered' : activeTitles.has(n.title) ? 'active' : 'available';
-
-  // The first tier beyond the frontier that actually has nodes (the locked tease).
-  const lockedTier = TIERS.find((t) => t > frontier && branchNodes.some((n) => n.tier === t));
-
-  return (
-    <div>
-      {/* Branch header */}
-      <div className="flex items-center gap-2 mb-1 pb-1.5 border-b" style={{ borderColor: `${config.color}40` }}>
-        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: config.color }} />
-        <h4 className="font-serif text-sm font-bold uppercase tracking-widest" style={{ color: config.color }}>
-          {config.name}
-        </h4>
-      </div>
-      <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mb-3">{config.covers}</p>
-
-      {/* Revealed tiers */}
-      <div className="space-y-3">
-        {TIERS.filter((t) => t <= frontier).map((tier) => {
-          const tierNodes = branchNodes.filter((n) => n.tier === tier);
-          if (tierNodes.length === 0) return null;
-          return (
-            <div key={tier}>
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <span
-                  className="w-4 h-4 rounded-full border bg-[#050510] flex items-center justify-center font-mono text-[7px] font-bold shrink-0"
-                  style={{ borderColor: config.color, color: config.color }}
-                >
-                  {TIER_LABEL[tier]}
-                </span>
-                <span className="font-mono text-[7px] text-slate-600 uppercase tracking-widest">{TIER_NAME[tier]}</span>
-              </div>
-              <div className="space-y-1.5">
-                {tierNodes.map((node) => (
-                  <NodeCard key={node.title} node={node} status={statusOf(node)} onAddQuest={onAddQuest} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Locked tease for the next tier */}
-        {lockedTier && (
-          <LockedTier
-            config={config}
-            tier={lockedTier}
-            prevTierName={TIER_NAME[frontier]}
-            count={branchNodes.filter((n) => n.tier === lockedTier).length}
-          />
-        )}
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------
@@ -614,6 +457,89 @@ function SpatialTree({
   );
 }
 
+// ---------------------------------------------------------
+// BRANCH TREES (phones & tablets) — each Life Skill Tree branch drawn with the
+// same tree engine as custom Paths: node cards on branches growing up from a
+// glowing root, the next tier sealed, and the living animations. Chips switch
+// between the five branches; the choice is remembered on this device.
+// ---------------------------------------------------------
+const BRANCH_KEY = 'habitquest:tree-branch';
+
+function BranchTrees({
+  onAddQuest,
+  masteredTitles,
+  activeTitles,
+}: {
+  onAddQuest: (q: QuestDraft) => void;
+  masteredTitles: Set<string>;
+  activeTitles: Set<string>;
+}) {
+  const [stat, setStat] = useState<StatType>(() => {
+    try {
+      const s = localStorage.getItem(BRANCH_KEY) as StatType | null;
+      return s && BRANCH_ORDER.includes(s) ? s : 'body';
+    } catch {
+      return 'body';
+    }
+  });
+  const pick = (s: StatType) => {
+    setStat(s);
+    try {
+      localStorage.setItem(BRANCH_KEY, s);
+    } catch {
+      /* ignore */
+    }
+  };
+  const mastered = new Set(NODES.filter((n) => masteredTitles.has(n.title)).map(lifeNodeId));
+  const active = new Set(NODES.filter((n) => activeTitles.has(n.title)).map(lifeNodeId));
+  const path = lifeBranchPath(stat);
+  const config = STATS[stat];
+
+  return (
+    <div>
+      <div role="tablist" aria-label="Skill tree branch" className="grid grid-cols-5 gap-1.5 mb-4">
+        {BRANCH_ORDER.map((s) => {
+          const c = STATS[s];
+          const all = NODES.filter((n) => n.stat === s);
+          const done = all.filter((n) => masteredTitles.has(n.title)).length;
+          const on = s === stat;
+          return (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={on}
+              onClick={() => pick(s)}
+              className="rounded-lg border px-1 py-2 text-center transition-all cursor-pointer"
+              style={on ? { borderColor: c.color, backgroundColor: `${c.color}1a` } : { borderColor: 'rgba(255,255,255,0.06)' }}
+            >
+              <span className="block font-mono text-[9px] font-bold uppercase tracking-wider" style={{ color: on ? c.color : '#94a3b8' }}>
+                {c.name}
+              </span>
+              <span className="block mt-1 h-1 rounded-full bg-white/5 overflow-hidden">
+                <span className="block h-full rounded-full" style={{ width: `${Math.round((done / all.length) * 100)}%`, backgroundColor: c.color }} />
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center gap-2 mb-1 pb-1.5 border-b" style={{ borderColor: `${config.color}40` }}>
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: config.color }} />
+        <h4 className="font-serif text-sm font-bold uppercase tracking-widest" style={{ color: config.color }}>
+          {config.name}
+        </h4>
+        <span className="ml-auto font-mono text-[8px] text-slate-500 uppercase tracking-wider">
+          {NODES.filter((n) => n.stat === stat && masteredTitles.has(n.title)).length}/{path.nodes.length} mastered
+        </span>
+      </div>
+      <p className="font-mono text-[8px] text-slate-600 uppercase tracking-wider mb-2">{config.covers}</p>
+
+      <PathTree key={stat} path={path} masteredNodeIds={mastered} activeNodeIds={active} onAddQuest={onAddQuest} />
+    </div>
+  );
+}
+
 export default function TaskSkillTree({
   onAddQuest,
   onLoadSeason,
@@ -651,17 +577,10 @@ export default function TaskSkillTree({
         <SpatialTree onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
       </div>
 
-      {/* MOBILE / TABLET: stacked branch list (the canvas doesn't fit narrow screens) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-6 lg:hidden">
-        {BRANCH_ORDER.map((stat) => (
-          <BranchColumn
-            key={stat}
-            stat={stat}
-            onAddQuest={onAddQuest}
-            masteredTitles={masteredTitles}
-            activeTitles={activeTitles}
-          />
-        ))}
+      {/* MOBILE / TABLET: one branch at a time, drawn as a real tree (the
+          radial canvas doesn't fit narrow screens) */}
+      <div className="lg:hidden">
+        <BranchTrees onAddQuest={onAddQuest} masteredTitles={masteredTitles} activeTitles={activeTitles} />
       </div>
     </div>
   );

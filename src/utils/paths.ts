@@ -11,7 +11,7 @@
 // deleted or moved, so the reward can't be gamed. Pure; App wires it to state.
 // ---------------------------------------------------------
 
-import { CustomPath, PathNode, Quest, QuestDraft, StatType } from '../types';
+import { CustomPath, PathNode, Quest, QuestDraft, StatType, STATS } from '../types';
 import { NODES } from '../data/lifeTree';
 import { uid } from './id';
 
@@ -22,6 +22,32 @@ export const NAME_MAX = 40;
 export const TITLE_MAX = 60;
 
 export type PathNodeStatus = 'mastered' | 'active' | 'available' | 'locked';
+
+/**
+ * A built-in Life Skill Tree branch shaped as a path, so phones can draw it
+ * with the same tree engine as custom Paths. Node ids are the stable
+ * `life:<stat>:<slug>` ids, so quests added from it link to the same nodes as
+ * the desktop tree.
+ */
+export function lifeBranchPath(stat: StatType): CustomPath {
+  return {
+    id: `life-${stat}`,
+    name: STATS[stat].name,
+    stat,
+    purpose: STATS[stat].covers,
+    nodes: NODES.filter((n) => n.stat === stat).map((n) => ({
+      id: lifeNodeId(n),
+      tier: n.tier,
+      title: n.title,
+      type: n.type,
+      difficulty: n.difficulty,
+      target: n.target,
+      description: n.description,
+    })),
+    createdAt: '',
+    updatedAt: '',
+  };
+}
 
 /** Stable id for a built-in Life Skill Tree node. */
 export function lifeNodeId(n: { stat: StatType; title: string }): string {
