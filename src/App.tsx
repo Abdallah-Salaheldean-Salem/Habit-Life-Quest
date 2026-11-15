@@ -61,7 +61,7 @@ import TaskSkillTree from './components/TaskSkillTree';
 import PathsView from './components/PathsView';
 import SwipeRow from './components/SwipeRow';
 import ClassPicker from './components/ClassPicker';
-import ClassSprite from './components/ClassSprite';
+import ClassHero from './components/ClassHero';
 import { NODES } from './data/lifeTree';
 import { lifeNodeId, nodeSetsFromQuests, MAX_PATHS } from './utils/paths';
 import { getFeel, setFeel as persistFeel, FeelSettings, celebrateCompletion, celebrateStreak, playSfx, buzz } from './utils/feedback';
@@ -2346,7 +2346,7 @@ export default function App() {
                 </span>
                 
                 <div className="flex items-center gap-1">
-                  <ClassSprite cls={userClass} size={20} idle />
+                  <ClassHero cls={userClass} bust backdrop={false} className="w-6 h-6 rounded-full bg-[#0c0c1b] border border-[#d4af37]/40" />
                   <span className="font-mono text-[10px] text-[#d4af37] font-semibold uppercase tracking-wider">
                     {CLASSES[userClass].name}
                   </span>
