@@ -16,6 +16,8 @@ import { Quest, LedgerEntry, FrictionItem, Debuff, TriggerEvent, TraitGoal, Cust
 export interface SaveFields {
   userName: string;
   userClass: string;
+  /** Chosen hero look for the class (see data/classHeroes); '' = default. */
+  heroLook?: string;
   quests: Quest[];
   ledger: LedgerEntry[];
   frictionItems: FrictionItem[];
@@ -41,6 +43,7 @@ export function buildLocalSave(s: SaveFields) {
     version: SCHEMA_VERSION,
     userName: s.userName,
     userClass: s.userClass,
+    heroLook: s.heroLook ?? '',
     quests: s.quests,
     ledger: s.ledger,
     frictionItems: s.frictionItems,
@@ -66,6 +69,7 @@ export function buildCloudSave(s: SaveFields): SaveStateData {
     version: SCHEMA_VERSION,
     userName: s.userName,
     userClass: s.userClass,
+    heroLook: s.heroLook ?? '',
     quests: s.quests,
     ledger: s.ledger,
     frictionItems: s.frictionItems,

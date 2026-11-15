@@ -5,7 +5,7 @@
 
 import React, { useId } from 'react';
 import { UserClass } from '../types';
-import { CLASS_HEROES, HERO_VIEWBOX, heroDetail } from '../data/classHeroes';
+import { HERO_VIEWBOX, heroMarkup, resolveLook } from '../data/classHeroes';
 
 /**
  * A class's hero: a dark silhouette backlit by the class's stat colour,
@@ -15,6 +15,7 @@ import { CLASS_HEROES, HERO_VIEWBOX, heroDetail } from '../data/classHeroes';
  */
 export default function ClassHero({
   cls,
+  look,
   bust = false,
   idle = false,
   backdrop = true,
@@ -22,6 +23,8 @@ export default function ClassHero({
   title,
 }: {
   cls: UserClass;
+  /** Look id; falls back to the class default. */
+  look?: string | null;
   bust?: boolean;
   idle?: boolean;
   /** Draw the coloured glow, rays and ground behind the hero. */
@@ -30,7 +33,7 @@ export default function ClassHero({
   /** Accessible name; omit for a decorative hero. */
   title?: string;
 }) {
-  const def = CLASS_HEROES[cls];
+  const def = resolveLook(cls, look);
   const id = useId().replace(/:/g, '');
   const ids = { glow: `g${id}`, sil: `s${id}`, bg: `b${id}`, rim: `r${id}` };
 
@@ -77,9 +80,10 @@ export default function ClassHero({
         </>
       )}
       <g className={idle ? 'hero-idle' : undefined}>
-        <path d={def.outline} fill={`url(#${ids.sil})`} stroke={`url(#${ids.rim})`} strokeWidth="1.3" strokeLinejoin="round" />
         {/* Static, authored art from data/classHeroes — never user input. */}
-        <g dangerouslySetInnerHTML={{ __html: heroDetail(def, ids) }} />
+        {def.back && <g dangerouslySetInnerHTML={{ __html: heroMarkup(def.back, def, ids) }} />}
+        <path d={def.outline} fill={`url(#${ids.sil})`} stroke={`url(#${ids.rim})`} strokeWidth="1.3" strokeLinejoin="round" />
+        <g dangerouslySetInnerHTML={{ __html: heroMarkup(def.detail, def, ids) }} />
       </g>
     </svg>
   );

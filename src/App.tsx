@@ -183,6 +183,7 @@ export default function App() {
   // ---------------------------------------------------------
   const [userName, setUserName] = useState<string>('Abdallah');
   const [userClass, setUserClass] = useState<UserClass>('scholar');
+  const [heroLook, setHeroLook] = useState<string>('');
   const [quests, setQuests] = useState<Quest[]>([]);
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
   const [frictionItems, setFrictionItems] = useState<FrictionItem[]>([]);
@@ -216,6 +217,7 @@ export default function App() {
   });
   const [creationName, setCreationName] = useState('');
   const [creationClass, setCreationClass] = useState<UserClass>('warrior');
+  const [creationLook, setCreationLook] = useState<string>('');
   const [showSyncInline, setShowSyncInline] = useState(false);
   const [creationEmail, setCreationEmail] = useState('');
   const [isSyncingLanding, setIsSyncingLanding] = useState(false);
@@ -239,6 +241,7 @@ export default function App() {
   const [isEditingCharacter, setIsEditingCharacter] = useState(false);
   const [editName, setEditName] = useState('Abdallah');
   const [editClass, setEditClass] = useState<UserClass>('scholar');
+  const [editLook, setEditLook] = useState<string>('');
   const [hoveredAchievement, setHoveredAchievement] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   // Full-screen celebration shown when a quest crosses into "mastered".
@@ -300,7 +303,7 @@ export default function App() {
     // Export the complete, current-schema save (the old version-1 export dropped
     // friction, debuffs, traits, tombstones and dates — a lossy backup).
     const data = buildLocalSave({
-      userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+      userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents,
       traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
     });
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -343,6 +346,7 @@ export default function App() {
         const fields = {
           userName: migrated.userName || 'Adventurer',
           userClass: migrated.userClass || 'scholar',
+          heroLook: migrated.heroLook || '',
           quests: migrated.quests || [],
           ledger: migrated.ledger || [],
           frictionItems: migrated.frictionItems || [],
@@ -359,6 +363,7 @@ export default function App() {
         };
         setUserName(fields.userName);
         setUserClass(fields.userClass as UserClass);
+        setHeroLook(fields.heroLook);
         setQuests(fields.quests);
         setLedger(fields.ledger);
         setFrictionItems(fields.frictionItems);
@@ -473,7 +478,7 @@ export default function App() {
       const res = await pullSave(userId);
       if (res.success && res.saveState) {
         let localState: SaveStateData = buildCloudSave({
-          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents,
           traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
         });
         
@@ -485,6 +490,7 @@ export default function App() {
             localState = buildCloudSave({
               userName: migrated.userName,
               userClass: migrated.userClass,
+              heroLook: migrated.heroLook || '',
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
@@ -508,6 +514,7 @@ export default function App() {
         // Update local React states
         setUserName(merged.userName);
         setUserClass(merged.userClass as UserClass);
+        setHeroLook(merged.heroLook || '');
         setQuests(merged.quests);
         setLedger(merged.ledger);
         setFrictionItems(merged.frictionItems || []);
@@ -534,7 +541,7 @@ export default function App() {
       } else if (res.success) {
         // No remote save exists, push current local state to cloud
         let localState: SaveStateData = buildCloudSave({
-          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents,
           traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter: true,
         });
         
@@ -546,6 +553,7 @@ export default function App() {
             localState = buildCloudSave({
               userName: migrated.userName,
               userClass: migrated.userClass,
+              heroLook: migrated.heroLook || '',
               quests: migrated.quests,
               ledger: migrated.ledger,
               frictionItems: migrated.frictionItems || [],
@@ -593,6 +601,7 @@ export default function App() {
         
         setUserName(migrated.userName);
         setUserClass(migrated.userClass);
+        setHeroLook(migrated.heroLook || '');
         setQuests(migrated.quests);
         setLedger(migrated.ledger);
         setFrictionItems(migrated.frictionItems || []);
@@ -653,12 +662,12 @@ export default function App() {
   useEffect(() => {
     if (quests.length > 0 || ledger.length > 0 || customPaths.length > 0) {
       const stateToSave = buildLocalSave({
-        userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+        userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents,
         traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail,
       });
       localStorage.setItem(SAVE_KEY, JSON.stringify(stateToSave));
     }
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
+  }, [userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter, syncEmail]);
 
   // Automatic background push to Supabase on state change (if signed in).
   // Debounced: a burst of edits (toggling several quests, typing) collapses
@@ -669,7 +678,7 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const stateToSave = buildCloudSave({
-          userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents,
+          userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents,
           traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter,
         });
         await pushSave(session.user.id, session.user.email || '', stateToSave);
@@ -683,13 +692,14 @@ export default function App() {
     return () => {
       if (pushTimer.current) clearTimeout(pushTimer.current);
     };
-  }, [userName, userClass, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
+  }, [userName, userClass, heroLook, quests, ledger, frictionItems, debuffs, triggerEvents, traitGoals, customPaths, deletedIds, liveClock, debuffLocalOnly, currentMockDate, hasCreatedCharacter]);
 
 
   const handleHardReset = () => {
     localStorage.removeItem(SAVE_KEY);
     setUserName('');
     setUserClass('scholar');
+    setHeroLook('');
     setQuests([]);
     setLedger([]);
     setFrictionItems([]);
@@ -708,6 +718,7 @@ export default function App() {
     const mock = getMockSaveData('2026-07-18');
     setUserName(mock.userName);
     setUserClass(mock.userClass);
+    setHeroLook('');
     setQuests(mock.quests);
     setLedger(mock.ledger);
     setFrictionItems(mock.frictionItems || []);
@@ -1572,6 +1583,7 @@ export default function App() {
     }
     setUserName(name);
     setUserClass(editClass);
+    setHeroLook(editLook);
     setIsEditingCharacter(false);
     showToast(`Profile updated to ${name} the ${CLASSES[editClass].name}!`);
   };
@@ -1622,6 +1634,7 @@ export default function App() {
     const today = toDateStr(new Date());
     setUserName(name);
     setUserClass(creationClass);
+    setHeroLook(creationLook);
     setHasCreatedCharacter(true);
     // A real character runs on the real calendar, not the demo's frozen date.
     setLiveClock(true);
@@ -1644,6 +1657,7 @@ export default function App() {
         buildLocalSave({
           userName: name,
           userClass: creationClass,
+          heroLook: creationLook,
           quests: [],
           ledger: [],
           frictionItems: [],
@@ -1840,7 +1854,7 @@ export default function App() {
                   <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-3 font-bold">
                     CLASS
                   </label>
-                  <ClassPicker value={creationClass} onChange={setCreationClass} />
+                  <ClassPicker value={creationClass} onChange={setCreationClass} look={creationLook} onLookChange={setCreationLook} />
                 </div>
 
                 {/* BEGIN BUTTON */}
@@ -2346,7 +2360,7 @@ export default function App() {
                 </span>
                 
                 <div className="flex items-center gap-1">
-                  <ClassHero cls={userClass} bust backdrop={false} className="w-6 h-6 rounded-full bg-[#0c0c1b] border border-[#d4af37]/40" />
+                  <ClassHero cls={userClass} look={heroLook} bust backdrop={false} className="w-6 h-6 rounded-full bg-[#0c0c1b] border border-[#d4af37]/40" />
                   <span className="font-mono text-[10px] text-[#d4af37] font-semibold uppercase tracking-wider">
                     {CLASSES[userClass].name}
                   </span>
@@ -2355,6 +2369,7 @@ export default function App() {
                       onClick={() => {
                         setEditName(userName);
                         setEditClass(userClass);
+                        setEditLook(heroLook);
                         setIsEditingCharacter(true);
                       }}
                       className="p-1 text-slate-500 hover:text-[#d4af37] transition-colors cursor-pointer"
@@ -3299,7 +3314,7 @@ export default function App() {
                 <label className="block font-mono text-[10px] text-slate-400 uppercase tracking-widest mb-3 font-bold">
                   CLASS
                 </label>
-                <ClassPicker value={editClass} onChange={setEditClass} />
+                <ClassPicker value={editClass} onChange={setEditClass} look={editLook} onLookChange={setEditLook} />
               </div>
 
               {/* DANGER ZONE - RESET PROGRESS */}

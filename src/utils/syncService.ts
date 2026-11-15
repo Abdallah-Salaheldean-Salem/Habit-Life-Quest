@@ -6,6 +6,7 @@ export interface SaveStateData {
   version: number;
   userName: string;
   userClass: string;
+  heroLook?: string;
   quests: Quest[];
   ledger: LedgerEntry[];
   currentMockDate: string;
@@ -306,6 +307,8 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
 
   const mergedUserName = !isRemoteDefault ? remote.userName : local.userName;
   const mergedUserClass = remote.userClass || local.userClass;
+  // The look belongs to the class, so take it from whichever side the class came from.
+  const mergedHeroLook = remote.userClass ? remote.heroLook : local.heroLook;
   const mergedCurrentMockDate = remote.currentMockDate || local.currentMockDate;
   const mergedHasCreatedCharacter = remote.hasCreatedCharacter || local.hasCreatedCharacter;
 
@@ -313,6 +316,7 @@ export function mergeSaves(local: SaveStateData, remote: SaveStateData): SaveSta
     version: Math.max(local.version || 1, remote.version || 1),
     userName: mergedUserName || 'Abdallah',
     userClass: mergedUserClass || 'scholar',
+    heroLook: mergedHeroLook || '',
     quests: mergedQuests,
     ledger: notDeleted(mergedLedger),
     frictionItems: notDeleted(mergedFrictionItems),
