@@ -110,3 +110,18 @@ html.campfire body {
   .animate-pop,
   .animate-flare svg { animation: none; }
 }
+
+/* ---- Class heroes: slow breathing + pulsing light rays ---- */
+@keyframes hq-breathe {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-1.5px) scale(1.012); }
+}
+@keyframes hq-rays {
+  0%, 100% { opacity: .14; }
+  50% { opacity: .26; }
+}
+.hero-idle { animation: hq-breathe 3.2s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+.hero-rays { animation: hq-rays 3.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-idle, .hero-rays { animation: none; }
+}
