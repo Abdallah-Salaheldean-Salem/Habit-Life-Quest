@@ -22,6 +22,26 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 
+// Closed-app reminders sent by the hq-push edge function.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : '' };
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || 'Habit Quest', {
+      body: data.body || 'Your quests are waiting.',
+      tag: data.tag || 'hq-push',
+      icon: '/logo-192.png',
+      badge: '/logo-192.png',
+      data: { url: data.url || '/' },
+    }),
+  );
+});
+
+
 self.addEventListener('install', () => {
   // Activate this version as soon as it is installed, without waiting for all
   // tabs to close.

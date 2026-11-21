@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useRef, lazy, Suspense, useMemo } from 'react';
 import { motion } from 'motion/react';
 import {
+  Target,
   Sparkles,
   Trophy,
   Shield,
@@ -72,6 +73,9 @@ import TraitPanel from './components/TraitPanel';
 import DawnRitual from './components/DawnRitual';
 import Campfire from './components/Campfire';
 import RemindersModal from './components/RemindersModal';
+import { pushActiveHere, disablePush } from './utils/push';
+import { pickBounty, bountyClaimed, daysAway, comebackQuest, COMEBACK_DAYS } from './utils/retention';
+import WelcomeBack from './components/WelcomeBack';
 import {
   loadReminders,
   saveReminders,
@@ -426,6 +430,27 @@ export default function App() {
     );
   }, [dayPhase, hasCreatedCharacter]);
 
+  // Welcome back: after a few days away, open on a warm screen once that day.
+  // Waits for the ledger and any cloud merge to settle, so a stale device
+  // doesn't greet someone who was active elsewhere yesterday.
+  const [welcomeDays, setWelcomeDays] = useState(0);
+  useEffect(() => {
+    if (!hasCreatedCharacter || isSyncing) return;
+    const t = setTimeout(() => {
+      const d = daysAway(ledger, currentMockDate);
+      if (d < COMEBACK_DAYS) return;
+      const KEY = 'habitquest:welcome-back';
+      try {
+        if (localStorage.getItem(KEY) === currentMockDate) return;
+        localStorage.setItem(KEY, currentMockDate);
+      } catch {
+        /* still show it */
+      }
+      setWelcomeDays(d);
+    }, 1500);
+    return () => clearTimeout(t);
+  }, [hasCreatedCharacter, isSyncing, ledger, currentMockDate]);
+
   // Persist reminder settings.
   useEffect(() => {
     saveReminders(reminders);
@@ -457,6 +482,8 @@ export default function App() {
     };
     const check = () => {
       if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+      // Closed-app push is on for this device: the server sends these, so stand down.
+      if (pushActiveHere()) return;
       const now = new Date();
       const todayStr = toDateStr(now);
       dueReminders(reminders, now, loadFired(), todayStr).forEach((key) => {
@@ -759,6 +786,19 @@ export default function App() {
   // from the history, so nothing extra is stored or synced.
   const shields = useMemo(() => computeShields(ledger.map((e) => e.date), currentMockDate), [ledger, currentMockDate]);
   const appWideStreak = shieldedStreak(ledgerDates, shields.shieldedDates, currentMockDate);
+
+  // Daily bounty: one repeatable quest a day pays +50% XP (see utils/retention).
+  const bountyQuest = useMemo(
+    () => (hasCreatedCharacter ? pickBounty(quests, currentMockDate, userName) : null),
+    [hasCreatedCharacter, quests, currentMockDate, userName],
+  );
+  const bountyDone = bountyClaimed(ledger, currentMockDate);
+  const renderBountyBadge = (q: Quest) =>
+    bountyQuest?.id === q.id ? (
+      <span className="ml-1.5 inline-flex items-center rounded border border-[#d4af37]/40 bg-[#d4af37]/10 px-1 align-middle font-mono text-[8px] font-bold uppercase tracking-wider text-[#d4af37]">
+        {bountyDone ? 'Bounty ✓' : 'Bounty +50%'}
+      </span>
+    ) : null;
 
   // Tell the user once (per device) when a shield is earned or used.
   useEffect(() => {
@@ -1367,11 +1407,12 @@ export default function App() {
         userClass,
         date: currentMockDate,
         id: uid('log'),
+        bountyQuestId: bountyQuest?.id,
       });
       setLedger([...ledger, entry]);
       maybeCelebrateMastery(q, entry);
       afterComplete(q, entry);
-      showToast(toast(entry.xp));
+      showToast(entry.bounty ? `🎯 Bounty claimed! +${entry.xp} XP for "${q.title}"` : toast(entry.xp));
     };
 
     if (q.type === 'daily') {
@@ -2162,6 +2203,8 @@ export default function App() {
                       </button>
                       <button
                         onClick={async () => {
+                          // Stop this device's push reminders while still signed in to do so.
+                          await disablePush();
                           const { error } = await supabase.auth.signOut();
                           if (error) {
                             showToast(`Logout error: ${error.message}`);
@@ -2739,6 +2782,20 @@ export default function App() {
                 return dayPhase === 'campfire' ? [camp, dawn] : [dawn, camp];
               })()}
 
+              {/* TODAY'S BOUNTY */}
+              {bountyQuest && (
+                <div data-testid="bounty-banner" className="mb-6 flex items-center gap-3 rounded-xl border border-[#d4af37]/30 bg-gradient-to-r from-[#d4af37]/10 to-transparent px-3 py-2.5">
+                  <Target className={`h-5 w-5 shrink-0 text-[#d4af37] ${bountyDone ? '' : 'animate-pulse'}`} />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-mono text-[9px] font-bold uppercase tracking-widest text-[#d4af37]">Today's bounty · +50% XP</p>
+                    <p className="truncate text-xs text-slate-200">{bountyQuest.title}</p>
+                  </div>
+                  <span className={`shrink-0 font-mono text-[9px] font-bold uppercase tracking-wider ${bountyDone ? 'text-emerald-300' : 'text-slate-500'}`}>
+                    {bountyDone ? 'Claimed ✓' : 'Open'}
+                  </span>
+                </div>
+              )}
+
               {questViewMode === 'tree' ? (
                 <TaskSkillTree
                   onAddQuest={handleAddQuest}
@@ -2864,6 +2921,7 @@ export default function App() {
                               }`}
                             >
                               {q.title}
+                              {renderBountyBadge(q)}
                             </h4>
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
@@ -2987,6 +3045,7 @@ export default function App() {
                               }`}
                             >
                               {q.title}
+                              {renderBountyBadge(q)}
                             </h4>
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
@@ -3090,6 +3149,7 @@ export default function App() {
                               }`}
                             >
                               {q.title}
+                              {renderBountyBadge(q)}
                             </h4>
                             {q.description && (
                               <p className="font-sans text-[10px] text-slate-500 leading-snug mt-0.5">{q.description}</p>
@@ -3274,11 +3334,29 @@ export default function App() {
         </Suspense>
       )}
 
+      {welcomeDays > 0 && (
+        <WelcomeBack
+          days={welcomeDays}
+          userName={userName}
+          userClass={userClass}
+          heroLook={heroLook}
+          level={levelProgress.level}
+          quest={comebackQuest(quests, bountyQuest)}
+          isBounty={!!bountyQuest && comebackQuest(quests, bountyQuest)?.id === bountyQuest.id}
+          onDo={(q) => {
+            setWelcomeDays(0);
+            if (!isLoggedToday(q.id)) handleToggleCheckCircle(q);
+          }}
+          onClose={() => setWelcomeDays(0)}
+        />
+      )}
+
       <RemindersModal
         isOpen={isRemindersOpen}
         onClose={() => setIsRemindersOpen(false)}
         settings={reminders}
         onChange={setReminders}
+        signedIn={!!syncEmail}
       />
 
       {/* EDIT CHARACTER OVERLAY MODAL */}

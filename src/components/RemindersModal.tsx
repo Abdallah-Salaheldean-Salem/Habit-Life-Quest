@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { X, Bell, BellOff } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { X, Bell, BellOff, Smartphone, Send } from 'lucide-react';
+import { pushSupported, pushActiveHere, enablePush, disablePush, syncPushPrefs, sendTestPush, refreshPushFlag } from '../utils/push';
 import {
   ReminderSettings,
   ReminderKey,
@@ -17,6 +18,8 @@ interface RemindersModalProps {
   onClose: () => void;
   settings: ReminderSettings;
   onChange: (next: ReminderSettings) => void;
+  /** Signed in to cloud sync — required for closed-app reminders. */
+  signedIn: boolean;
 }
 
 type Permission = 'default' | 'granted' | 'denied' | 'unsupported';
@@ -26,13 +29,61 @@ function currentPermission(): Permission {
   return Notification.permission as Permission;
 }
 
-export default function RemindersModal({ isOpen, onClose, settings, onChange }: RemindersModalProps) {
+export default function RemindersModal({ isOpen, onClose, settings, onChange, signedIn }: RemindersModalProps) {
   const [permission, setPermission] = useState<Permission>(currentPermission());
+  const [pushOn, setPushOn] = useState<boolean>(pushActiveHere());
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Re-check against the browser each time the panel opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    setNote(null);
+    setPermission(currentPermission());
+    refreshPushFlag().then(setPushOn).catch(() => setPushOn(false));
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
+  // Every change also reaches the server while closed-app reminders are on
+  // (debounced, so dragging a time picker sends one update).
+  const update = (next: ReminderSettings) => {
+    onChange(next);
+    if (!pushOn) return;
+    if (syncTimer.current) clearTimeout(syncTimer.current);
+    syncTimer.current = setTimeout(() => {
+      syncPushPrefs(next).catch((e: Error) => setNote({ ok: false, text: e.message }));
+    }, 600);
+  };
+
+  const run = async (fn: () => Promise<void>, ok: string) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      await fn();
+      setNote({ ok: true, text: ok });
+    } catch (e) {
+      setNote({ ok: false, text: (e as Error).message });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const togglePush = () =>
+    pushOn
+      ? run(async () => {
+          await disablePush();
+          setPushOn(false);
+        }, 'Closed-app reminders are off on this device.')
+      : run(async () => {
+          await enablePush(settings);
+          setPushOn(true);
+          setPermission(currentPermission());
+        }, "Done — you'll get reminders even when the app is closed.");
+
   const setKey = (key: ReminderKey, patch: Partial<ReminderSettings[ReminderKey]>) => {
-    onChange({ ...settings, [key]: { ...settings[key], ...patch } });
+    update({ ...settings, [key]: { ...settings[key], ...patch } });
   };
 
   const enable = async () => {
@@ -43,11 +94,11 @@ export default function RemindersModal({ isOpen, onClose, settings, onChange }: 
       setPermission(perm);
     }
     if (perm === 'granted') {
-      onChange({ ...settings, enabled: true });
+      update({ ...settings, enabled: true });
     }
   };
 
-  const disable = () => onChange({ ...settings, enabled: false });
+  const disable = () => update({ ...settings, enabled: false });
 
   const on = settings.enabled && permission === 'granted';
 
@@ -132,10 +183,53 @@ export default function RemindersModal({ isOpen, onClose, settings, onChange }: 
           })}
         </div>
 
-        <p className="mt-4 font-mono text-[9px] leading-relaxed text-slate-500">
-          Reminders fire while Habit Quest is open or running in the background. For alerts when the app is
-          fully closed, install it to your home screen — and full closed-app push is a planned follow-up.
-        </p>
+        {/* Closed-app push */}
+        <div className={`mt-5 rounded-lg border border-[#d4af37]/20 bg-[#1a1a2e] p-3 transition-opacity ${on ? '' : 'pointer-events-none opacity-40'}`}>
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-wider text-[#e0e0e0]">
+                <Smartphone className="h-3.5 w-3.5 text-[#d4af37]" /> Even when the app is closed
+              </p>
+              <p className="mt-0.5 font-mono text-[9px] leading-relaxed text-slate-500">
+                Sent at your times, worded from your streak — and skipped when you've already done the day. At most two a day.
+              </p>
+            </div>
+            {pushSupported() && signedIn && (
+              <button
+                onClick={togglePush}
+                disabled={busy}
+                role="switch"
+                aria-checked={pushOn}
+                aria-label="Reminders even when the app is closed"
+                className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-50 ${pushOn ? 'bg-[#d4af37]' : 'bg-slate-700'}`}
+              >
+                <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-[#050510] transition-all ${pushOn ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            )}
+          </div>
+          {!pushSupported() ? (
+            <p className="mt-2 font-mono text-[9px] leading-relaxed text-amber-200/80">
+              This browser can't receive them. On iPhone, add Habit Quest to your Home Screen (Share → Add to Home Screen) and open it from there.
+            </p>
+          ) : !signedIn ? (
+            <p className="mt-2 font-mono text-[9px] leading-relaxed text-amber-200/80">
+              Sign in to sync (your Character ID) first, so your reminders can follow your progress.
+            </p>
+          ) : pushOn ? (
+            <button
+              onClick={() => run(sendTestPush, 'Test sent — check your notifications.')}
+              disabled={busy}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-white/10 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-wider text-slate-300 transition-colors hover:border-[#d4af37]/40 hover:text-[#d4af37] disabled:opacity-50"
+            >
+              <Send className="h-3 w-3" /> Send a test
+            </button>
+          ) : null}
+          {note && (
+            <p role="status" className={`mt-2 font-mono text-[9px] leading-relaxed ${note.ok ? 'text-emerald-300' : 'text-rose-300'}`}>
+              {note.text}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

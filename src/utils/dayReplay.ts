@@ -9,7 +9,7 @@ export interface DayReplay {
   date: string;
   totalXp: number;
   /** Quest completions that day (full or minimum), in the order logged. */
-  quests: { title: string; stat: StatType; xp: number; minimum: boolean }[];
+  quests: { title: string; stat: StatType; xp: number; minimum: boolean; bounty: boolean }[];
   /** Other XP that day (environment changes, debuffs, traits). */
   other: { title: string; stat: StatType; xp: number }[];
   /** That night's Campfire win, if the day was banked. */
@@ -24,7 +24,7 @@ export function dayReplay(ledger: LedgerEntry[], date: string): DayReplay {
     out.totalXp += e.xp;
     const kind = e.kind ?? 'full';
     if (kind === 'reflection') out.win = { text: e.questTitle.replace(/^Campfire:\s*/, ''), stat: e.stat };
-    else if (kind === 'full' || kind === 'minimum') out.quests.push({ title: e.questTitle, stat: e.stat, xp: e.xp, minimum: kind === 'minimum' });
+    else if (kind === 'full' || kind === 'minimum') out.quests.push({ title: e.questTitle, stat: e.stat, xp: e.xp, minimum: kind === 'minimum', bounty: !!e.bounty });
     else out.other.push({ title: e.questTitle, stat: e.stat, xp: e.xp });
   }
   return out;

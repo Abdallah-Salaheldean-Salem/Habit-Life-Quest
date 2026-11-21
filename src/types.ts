@@ -182,6 +182,8 @@ export interface LedgerEntry {
   kind?: 'full' | 'minimum' | 'friction' | 'debuff' | 'trait' | 'reflection';
   /** True when the Dawn Ritual's daily buff (+10% XP) was applied to this entry. */
   buffed?: boolean;
+  /** Completed as the day's bounty quest (+50% XP, already included in xp). */
+  bounty?: boolean;
 }
 
 /**

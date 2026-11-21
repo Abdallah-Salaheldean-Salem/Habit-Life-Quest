@@ -173,6 +173,7 @@ export default function Chronicle({ ledger, todayStr, shieldedDates = new Set(),
                   <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: STATS[q.stat].color }} />
                   <span className="min-w-0 truncate">{q.title}</span>
                   {'minimum' in q && q.minimum && <span className="font-mono text-[8px] uppercase text-[#d4af37]/70">min</span>}
+                  {'bounty' in q && q.bounty && <span className="font-mono text-[8px] uppercase text-[#d4af37]">bounty</span>}
                   <span className="ml-auto font-mono text-[9px] text-slate-400 tabular-nums">+{q.xp}</span>
                 </li>
               ))}
