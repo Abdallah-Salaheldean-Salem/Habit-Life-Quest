@@ -58,7 +58,7 @@ async function send(sub: Sub, msg: Message): Promise<boolean> {
   try {
     await webpush.sendNotification(
       { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-      JSON.stringify({ ...msg, url: '/' }),
+      JSON.stringify({ url: '/', ...msg }),
       { TTL: 60 * 60 * 6, urgency: 'normal' },
     );
     return true;

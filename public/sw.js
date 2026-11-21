@@ -7,16 +7,22 @@
 // offline, and takes control immediately via skipWaiting + clients.claim.
 const CACHE = 'hlq-cache-v2';
 
-// Focus an open tab (or open one) when a reminder notification is tapped.
+// Focus an open tab (or open one) when a reminder notification is tapped,
+// and pass along where it should go (e.g. /?view=recap for the weekly recap).
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/';
   event.waitUntil(
     (async () => {
       const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
       for (const client of all) {
-        if ('focus' in client) return client.focus();
+        if ('focus' in client) {
+          await client.focus();
+          if (url !== '/') client.postMessage({ type: 'hq-open', url });
+          return;
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow('/');
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })(),
   );
 });

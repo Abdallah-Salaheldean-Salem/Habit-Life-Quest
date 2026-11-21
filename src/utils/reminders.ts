@@ -10,7 +10,7 @@
 // the app is fully closed would need a push server — out of scope here.
 // ---------------------------------------------------------
 
-export type ReminderKey = 'dawn' | 'campfire' | 'daily';
+export type ReminderKey = 'dawn' | 'campfire' | 'daily' | 'weekly';
 
 export interface ReminderConfig {
   on: boolean;
@@ -24,11 +24,13 @@ export interface ReminderSettings {
   dawn: ReminderConfig;
   campfire: ReminderConfig;
   daily: ReminderConfig;
+  /** Sundays only: the weekly recap. */
+  weekly: ReminderConfig;
 }
 
-export const REMINDER_KEYS: ReminderKey[] = ['dawn', 'campfire', 'daily'];
+export const REMINDER_KEYS: ReminderKey[] = ['dawn', 'campfire', 'daily', 'weekly'];
 
-export const REMINDER_META: Record<ReminderKey, { label: string; hint: string; title: string; body: string }> = {
+export const REMINDER_META: Record<ReminderKey, { label: string; hint: string; title: string; body: string; url?: string }> = {
   dawn: {
     label: 'Dawn Ritual',
     hint: 'A morning nudge to start your loadout.',
@@ -47,6 +49,13 @@ export const REMINDER_META: Record<ReminderKey, { label: string; hint: string; t
     title: 'Habit Quest',
     body: 'Your quests are waiting. Keep the streak alive.',
   },
+  weekly: {
+    label: 'Weekly recap',
+    hint: 'Sundays: your week in XP, best day and Campfire wins.',
+    title: '📜 Your week in review',
+    body: 'Your weekly recap is ready — see how the week went.',
+    url: '/?view=recap',
+  },
 };
 
 export const DEFAULT_REMINDERS: ReminderSettings = {
@@ -54,6 +63,7 @@ export const DEFAULT_REMINDERS: ReminderSettings = {
   dawn: { on: true, time: '07:30' },
   campfire: { on: true, time: '20:30' },
   daily: { on: false, time: '12:00' },
+  weekly: { on: true, time: '18:00' },
 };
 
 const KEY = 'habitquest:reminders';
@@ -126,7 +136,8 @@ export function dueReminders(
   const nowMin = now.getHours() * 60 + now.getMinutes();
   return REMINDER_KEYS.filter((k) => {
     const cfg = s[k];
-    if (!cfg.on) return false;
+    if (!cfg?.on) return false;
+    if (k === 'weekly' && now.getDay() !== 0) return false; // Sundays only
     const due = timeToMinutes(cfg.time);
     if (due === null) return false;
     if (nowMin < due || nowMin >= due + FIRE_WINDOW_MIN) return false;

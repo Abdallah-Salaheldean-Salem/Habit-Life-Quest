@@ -4,15 +4,17 @@
 // and in the app's vitest suite (src/utils/pushMessages.test.ts). Streaks and
 // shields mirror src/utils/logic.ts and src/utils/shields.ts.
 
-export type Kind = 'dawn' | 'daily' | 'campfire';
-export const KINDS: Kind[] = ['dawn', 'daily', 'campfire'];
+export type Kind = 'dawn' | 'daily' | 'campfire' | 'weekly';
+export const KINDS: Kind[] = ['dawn', 'daily', 'campfire', 'weekly'];
+/** The weekly recap goes out on Sundays and doesn't count toward the daily cap. */
+const CAPPED: Kind[] = ['dawn', 'daily', 'campfire'];
 
 /** Reminder times as "HH:MM" (24h) in the device's timezone; null/absent = off. */
 export type Prefs = Partial<Record<Kind, string | null>>;
 /** The local date each kind was last sent on. */
 export type LastSent = Partial<Record<Kind, string>>;
 
-/** Never more than this many reminders a day per device. */
+/** Never more than this many daily reminders a day per device (the weekly recap is extra). */
 export const MAX_PER_DAY = 2;
 /** A reminder whose time passed more than this long ago is skipped, not sent late. */
 export const LATE_WINDOW_MIN = 180;
@@ -24,6 +26,8 @@ export interface Message {
   title: string;
   body: string;
   tag: string;
+  /** Where tapping it opens (defaults to the app's home). */
+  url?: string;
 }
 
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -41,17 +45,20 @@ export function cleanPrefs(input: Json): Prefs {
 
 /** The kinds due right now: time reached, within the late window, not sent today, daily cap respected. */
 export function dueKinds(prefs: Prefs, nowHHMM: string, today: string, lastSent: LastSent): Kind[] {
-  let sentToday = KINDS.filter((k) => lastSent[k] === today).length;
+  let sentToday = CAPPED.filter((k) => lastSent[k] === today).length;
   const now = minutes(nowHHMM);
   const out: Kind[] = [];
   for (const k of KINDS) {
     const t = prefs[k];
     if (!t || !HHMM.test(t) || lastSent[k] === today) continue;
+    if (k === 'weekly' && new Date(today + 'T00:00:00Z').getUTCDay() !== 0) continue; // Sundays only
     const diff = now - minutes(t);
     if (diff < 0 || diff > LATE_WINDOW_MIN) continue;
-    if (sentToday >= MAX_PER_DAY) break;
+    if (k !== 'weekly') {
+      if (sentToday >= MAX_PER_DAY) continue;
+      sentToday++;
+    }
     out.push(k);
-    sentToday++;
   }
   return out;
 }
@@ -134,12 +141,67 @@ export function summarize(save: Json, today: string) {
   };
 }
 
+const STATS_ORDER = ['body', 'mind', 'career', 'spirit', 'hobby'];
+const STAT_NAMES: Record<string, string> = { body: 'Body', mind: 'Mind', career: 'Career', spirit: 'Spirit', hobby: 'Hobby' };
+
+/** The Monday–Sunday week containing `today`, so far (mirror of src/utils/weeklyRecap.ts). */
+export function weekSummary(save: Json, today: string) {
+  const ledger: Json[] = Array.isArray(save?.ledger) ? save.ledger.filter((e: Json) => isDate(e?.date)) : [];
+  const start = mondayOf(today);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
+  const prevStart = addDays(start, -7);
+  const dayXp = days.map(() => 0);
+  const byStat: Record<string, number> = Object.fromEntries(STATS_ORDER.map((s) => [s, 0]));
+  let prevTotalXp = 0;
+  let wins = 0;
+  for (const e of ledger) {
+    if (e.date > today) continue;
+    const xp = Number(e.xp) || 0;
+    if (e.date >= prevStart && e.date < start) {
+      prevTotalXp += xp;
+      continue;
+    }
+    const i = days.indexOf(e.date);
+    if (i < 0) continue;
+    dayXp[i] += xp;
+    if (e.stat in byStat) byStat[e.stat] += xp;
+    if (e.kind === 'reflection') wins++;
+  }
+  const totalXp = dayXp.reduce((a, b) => a + b, 0);
+  const bestI = dayXp.reduce((bi, x, i) => (x > dayXp[bi] ? i : bi), 0);
+  return {
+    totalXp,
+    prevTotalXp,
+    activeDays: new Set(ledger.filter((e) => e.date >= start && e.date <= today && days.includes(e.date)).map((e) => e.date)).size,
+    best: totalXp > 0 ? { date: days[bestI], xp: dayXp[bestI] } : null,
+    topStat: totalXp > 0 ? STATS_ORDER.reduce((a, b) => (byStat[b] > byStat[a] ? b : a)) : null,
+    wins,
+  };
+}
+
 export const COMEBACK_DAYS = 3;
 
 /** The reminder for `kind`, or null when there's nothing worth saying (already done). */
 export function buildMessage(kind: Kind, save: Json, today: string): Message | null {
-  const s = summarize(save, today);
   const tag = `hq-${kind}-${today}`;
+  if (kind === 'weekly') {
+    const w = weekSummary(save, today);
+    if (w.totalXp <= 0) return null; // nothing to celebrate — no guilt trip
+    const pct = w.prevTotalXp > 0 ? Math.round(((w.totalXp - w.prevTotalXp) / w.prevTotalXp) * 100) : null;
+    const weekday = new Date(w.best!.date + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const parts = [
+      `+${w.totalXp} XP${pct !== null && pct >= 0 ? ` (+${pct}% on last week)` : ''}`,
+      `${w.activeDays}/7 days`,
+      `best: ${weekday} (+${w.best!.xp})`,
+    ];
+    const extra = [
+      w.topStat ? `${STAT_NAMES[w.topStat]} led the week.` : '',
+      w.wins ? `${w.wins} Campfire win${w.wins === 1 ? '' : 's'}.` : '',
+      w.activeDays === 7 ? '🛡 Perfect week!' : '',
+    ].filter(Boolean).join(' ');
+    return { title: '📜 Your week in review', body: `${parts.join(' · ')}. ${extra}`.trim(), tag, url: '/?view=recap' };
+  }
+  const s = summarize(save, today);
   const comeback = s.hasHistory && s.daysAway >= COMEBACK_DAYS;
   const levelHint = s.toNext <= 60 ? ` ${s.toNext} XP to Level ${s.level + 1}.` : '';
 
