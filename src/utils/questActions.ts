@@ -11,6 +11,7 @@
 // ---------------------------------------------------------
 
 import { Quest, LedgerEntry, UserClass } from '../types';
+import { BOUNTY_FACTOR, bountyClaimed } from './retention';
 import { calculateQuestXp, applyDawnBuff } from './logic';
 
 /** The never-zero fallback earns this fraction of a quest's base XP. */
@@ -25,6 +26,8 @@ export interface CompletionInput {
   id: string;
   /** 'full' applies the Dawn buff; 'minimum' is the never-zero fallback. */
   kind?: 'full' | 'minimum';
+  /** Today's bounty quest id; a full completion of it pays BOUNTY_FACTOR (once a day). */
+  bountyQuestId?: string | null;
 }
 
 /**
@@ -33,7 +36,7 @@ export interface CompletionInput {
  * base XP and never carries the buff. Pure.
  */
 export function buildCompletionEntry(input: CompletionInput): LedgerEntry {
-  const { quest, quests, ledger, userClass, date, id, kind = 'full' } = input;
+  const { quest, quests, ledger, userClass, date, id, kind = 'full', bountyQuestId } = input;
   const base = calculateQuestXp(quest.difficulty, quest.type, quest.stat, userClass);
   const common = {
     id,
@@ -50,7 +53,14 @@ export function buildCompletionEntry(input: CompletionInput): LedgerEntry {
   }
 
   const { xp, buffed } = applyDawnBuff(base, quest, quests, ledger, date);
-  return { ...common, xp, kind: 'full', ...(buffed ? { buffed: true } : {}) };
+  const bounty = !!bountyQuestId && quest.id === bountyQuestId && !bountyClaimed(ledger, date);
+  return {
+    ...common,
+    xp: bounty ? Math.round(xp * BOUNTY_FACTOR) : xp,
+    kind: 'full',
+    ...(buffed ? { buffed: true } : {}),
+    ...(bounty ? { bounty: true } : {}),
+  };
 }
 
 /** Remove all of a quest's completions on `date` (daily undo). */
