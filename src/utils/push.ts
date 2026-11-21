@@ -17,11 +17,11 @@ import { ReminderSettings, REMINDER_KEYS } from './reminders';
 
 const FLAG = 'habitquest:push-on';
 
-export type PushPrefs = Record<'dawn' | 'daily' | 'campfire', string | null>;
+export type PushPrefs = Record<'dawn' | 'daily' | 'campfire' | 'weekly', string | null>;
 
 /** Reminder times to send to the server: only switched-on reminders, and none when reminders are off. */
 export function pushPrefsFrom(settings: ReminderSettings): PushPrefs {
-  const out = { dawn: null, daily: null, campfire: null } as PushPrefs;
+  const out: PushPrefs = { dawn: null, daily: null, campfire: null, weekly: null };
   if (!settings.enabled) return out;
   for (const k of REMINDER_KEYS) if (settings[k].on) out[k] = settings[k].time;
   return out;

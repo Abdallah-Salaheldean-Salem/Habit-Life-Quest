@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildMessage, dueKinds, cleanPrefs, shields, streakOf, levelOf, localNow, addDays, summarize, MAX_PER_DAY } from '../../supabase/functions/hq-push/messages';
+import { buildMessage, dueKinds, cleanPrefs, shields, streakOf, levelOf, localNow, addDays, summarize, weekSummary, MAX_PER_DAY } from '../../supabase/functions/hq-push/messages';
 import { computeShields, shieldedStreak } from './shields';
 import { getLevelAndProgress } from './logic';
 
@@ -16,7 +16,7 @@ describe('push reminder timing', () => {
   const prefs = cleanPrefs({ dawn: '07:30', daily: '19:00', campfire: '21:30', junk: '1', extra: 'x' });
 
   it('accepts only valid HH:MM times', () => {
-    expect(cleanPrefs({ dawn: '7:30', daily: '25:00', campfire: '21:05' })).toEqual({ dawn: null, daily: null, campfire: '21:05' });
+    expect(cleanPrefs({ dawn: '7:30', daily: '25:00', campfire: '21:05' })).toEqual({ dawn: null, daily: null, campfire: '21:05', weekly: null });
   });
 
   it('is due once the time is reached, not before, and not hours late', () => {
@@ -104,5 +104,53 @@ describe('push reminder wording', () => {
     expect(buildMessage('daily', save([]), TODAY)!.title).toBe('Your quests are waiting');
     expect(() => buildMessage('daily', null, TODAY)).not.toThrow();
     expect(() => buildMessage('campfire', { ledger: 'nope' }, TODAY)).not.toThrow();
+  });
+});
+
+describe('weekly recap push', () => {
+  const SUNDAY = '2026-11-22';
+  const prefs = cleanPrefs({ daily: '18:00', campfire: '18:00', dawn: '18:00', weekly: '18:00' });
+
+  it('goes out on Sundays only, on top of the daily cap', () => {
+    expect(dueKinds(prefs, '18:05', SUNDAY, {})).toEqual(['dawn', 'daily', 'weekly']);
+    expect(dueKinds(prefs, '18:05', TODAY, {})).not.toContain('weekly'); // Saturday
+    expect(dueKinds(prefs, '18:05', SUNDAY, { dawn: SUNDAY, daily: SUNDAY })).toEqual(['weekly']);
+    expect(dueKinds(prefs, '18:05', SUNDAY, { weekly: SUNDAY, dawn: SUNDAY, daily: SUNDAY })).toEqual([]);
+  });
+
+  it('sums up the week and opens the recap; silent for an empty week', () => {
+    const ledger = [
+      entry('2026-11-10', { xp: 40 }), // last week
+      entry('2026-11-16', { xp: 30 }), entry('2026-11-18', { xp: 50, stat: 'body' }), entry('2026-11-18', { xp: 5, kind: 'reflection', stat: 'spirit' }),
+    ];
+    const m = buildMessage('weekly', { userClass: 'monk', ledger, quests: [] }, SUNDAY)!;
+    expect(m.title).toBe('📜 Your week in review');
+    expect(m.body).toContain('+85 XP (+113% on last week)');
+    expect(m.body).toContain('2/7 days');
+    expect(m.body).toContain('best: Wednesday (+55)');
+    expect(m.body).toContain('Body led the week.');
+    expect(m.body).toContain('1 Campfire win.');
+    expect(m.url).toBe('/?view=recap');
+    expect(buildMessage('weekly', { ledger: [entry('2026-11-10')] }, SUNDAY)).toBeNull();
+  });
+
+  it('never says a week was worse', () => {
+    const ledger = [entry('2026-11-10', { xp: 500 }), entry('2026-11-16', { xp: 10 })];
+    expect(buildMessage('weekly', { ledger }, SUNDAY)!.body).not.toMatch(/%/);
+  });
+
+  it('matches the recap card on 200 random weeks', async () => {
+    const { weekRecap } = await import('./weeklyRecap');
+    let seed = 11;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const stats = ['body', 'mind', 'career', 'spirit', 'hobby'];
+    for (let run = 0; run < 200; run++) {
+      const ledger = Array.from({ length: Math.floor(rand() * 25) }, () =>
+        entry(addDays(SUNDAY, -Math.floor(rand() * 16)), { xp: Math.floor(rand() * 60), stat: stats[Math.floor(rand() * 5)], kind: rand() < 0.15 ? 'reflection' : 'full' }),
+      );
+      const srv = weekSummary({ ledger }, SUNDAY);
+      const app = weekRecap(ledger as never, SUNDAY, SUNDAY);
+      expect(srv).toMatchObject({ totalXp: app.totalXp, prevTotalXp: app.prevTotalXp, activeDays: app.activeDays, best: app.best, topStat: app.topStat, wins: app.wins.length });
+    }
   });
 });

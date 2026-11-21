@@ -76,6 +76,7 @@ import RemindersModal from './components/RemindersModal';
 import { pushActiveHere, disablePush } from './utils/push';
 import { pickBounty, bountyClaimed, daysAway, comebackQuest, COMEBACK_DAYS } from './utils/retention';
 import WelcomeBack from './components/WelcomeBack';
+import WeeklyRecap from './components/WeeklyRecap';
 import {
   loadReminders,
   saveReminders,
@@ -84,6 +85,7 @@ import {
   dueReminders,
   REMINDER_META,
   ReminderSettings,
+  ReminderKey,
 } from './utils/reminders';
 import { ACHIEVEMENTS } from './utils/achievements';
 
@@ -451,6 +453,28 @@ export default function App() {
     return () => clearTimeout(t);
   }, [hasCreatedCharacter, isSyncing, ledger, currentMockDate]);
 
+  // Deep link from the Sunday recap notification: /?view=recap.
+  useEffect(() => {
+    const open = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('view') !== 'recap') return;
+      setMainTab('character');
+      setTimeout(() => document.getElementById('weekly-recap')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
+      params.delete('view');
+      const q = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash);
+    };
+    open();
+    // An already-open app is told by the service worker when the notification is tapped.
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== 'hq-open' || typeof e.data.url !== 'string') return;
+      window.history.replaceState(null, '', e.data.url);
+      open();
+    };
+    navigator.serviceWorker?.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMsg);
+  }, []);
+
   // Persist reminder settings.
   useEffect(() => {
     saveReminders(reminders);
@@ -460,14 +484,14 @@ export default function App() {
   // closed-app push needs a server. Checked on mount and every 30s.
   useEffect(() => {
     if (!reminders.enabled) return;
-    const fire = async (key: 'dawn' | 'campfire' | 'daily') => {
+    const fire = async (key: ReminderKey) => {
       const meta = REMINDER_META[key];
       const opts: NotificationOptions = {
         body: meta.body,
         tag: `hlq-${key}`,
         icon: '/logo-192.png',
         badge: '/logo-192.png',
-        data: { url: '/' },
+        data: { url: meta.url || '/' },
       };
       try {
         const reg = await navigator.serviceWorker?.ready;
@@ -3289,8 +3313,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* CHRONICLE PANEL */}
+            {/* CHRONICLE PANEL (with the weekly recap above it) */}
             <div className={`order-8 lg:order-none ${show('character')}`}>
+              <WeeklyRecap ledger={ledger} todayStr={currentMockDate} shieldsEarnedOn={shields.earnedOn} />
               <Chronicle ledger={ledger} todayStr={currentMockDate} shieldedDates={shields.shieldedDates} shieldBank={shields.bank} />
             </div>
 
