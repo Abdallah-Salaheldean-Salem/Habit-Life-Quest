@@ -6,16 +6,20 @@
 import React, { useId } from 'react';
 import { UserClass } from '../types';
 import { HERO_VIEWBOX, heroMarkup, resolveLook } from '../data/classHeroes';
+import { legendArt, legendGround } from '../data/legendArt';
+import { LegendTiers } from '../utils/legends';
 
 /**
  * A class's hero: a dark silhouette backlit by the class's stat colour,
  * with light rays, a ground glow and its glowing signature item.
  * `bust` frames head and shoulders for small badges; `idle` makes the hero
- * breathe gently (off under reduced motion).
+ * breathe gently (off under reduced motion). With `tiers`, a look that has a
+ * legend is drawn at those chapters (see data/legendArt).
  */
 export default function ClassHero({
   cls,
   look,
+  tiers,
   bust = false,
   idle = false,
   backdrop = true,
@@ -25,6 +29,8 @@ export default function ClassHero({
   cls: UserClass;
   /** Look id; falls back to the class default. */
   look?: string | null;
+  /** Legend progress for this look; omit to draw the classic art. */
+  tiers?: LegendTiers | null;
   bust?: boolean;
   idle?: boolean;
   /** Draw the coloured glow, rays and ground behind the hero. */
@@ -35,7 +41,10 @@ export default function ClassHero({
 }) {
   const def = resolveLook(cls, look);
   const id = useId().replace(/:/g, '');
-  const ids = { glow: `g${id}`, sil: `s${id}`, bg: `b${id}`, rim: `r${id}` };
+  const ids = { glow: `g${id}`, sil: `s${id}`, bg: `b${id}`, rim: `r${id}`, blur: `x${id}` };
+  const legend = tiers ? legendArt(def.id, tiers) : null;
+  const ground = tiers ? legendGround(def.id, tiers) : null;
+  const fill = (markup: string) => heroMarkup(markup, def, ids).replace(/#BLUR2/g, `#${ids.blur}`).replace(/#RIM/g, `#${ids.rim}`);
 
   return (
     <svg
@@ -67,6 +76,14 @@ export default function ClassHero({
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
+        <filter id={ids.blur} x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur stdDeviation="2.2" result="b" />
+          <feMerge>
+            <feMergeNode in="b" />
+            <feMergeNode in="b" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
       {backdrop && (
         <>
@@ -76,14 +93,20 @@ export default function ClassHero({
             <path d="M60 50 L52 0 H68Z" />
             <path d="M60 50 L86 0 H100Z" />
           </g>
-          <ellipse cx="60" cy="171" rx="42" ry="5" fill={def.color} opacity=".35" />
+          <ellipse cx="60" cy={ground?.cy ?? 171} rx={ground?.rx ?? 42} ry={ground?.ry ?? 5} fill={def.color} opacity={ground?.opacity ?? 0.35} />
         </>
       )}
       <g className={idle ? 'hero-idle' : undefined}>
-        {/* Static, authored art from data/classHeroes — never user input. */}
-        {def.back && <g dangerouslySetInnerHTML={{ __html: heroMarkup(def.back, def, ids) }} />}
-        <path d={def.outline} fill={`url(#${ids.sil})`} stroke={`url(#${ids.rim})`} strokeWidth="1.3" strokeLinejoin="round" />
-        <g dangerouslySetInnerHTML={{ __html: heroMarkup(def.detail, def, ids) }} />
+        {/* Static, authored art from data/classHeroes and data/legendArt — never user input. */}
+        {legend ? (
+          <g dangerouslySetInnerHTML={{ __html: fill(legend) }} />
+        ) : (
+          <>
+            {def.back && <g dangerouslySetInnerHTML={{ __html: fill(def.back) }} />}
+            <path d={def.outline} fill={`url(#${ids.sil})`} stroke={`url(#${ids.rim})`} strokeWidth="1.3" strokeLinejoin="round" />
+            <g dangerouslySetInnerHTML={{ __html: fill(def.detail) }} />
+          </>
+        )}
       </g>
     </svg>
   );
