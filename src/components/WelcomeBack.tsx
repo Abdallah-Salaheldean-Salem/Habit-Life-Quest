@@ -7,6 +7,7 @@ import React from 'react';
 import { Quest, UserClass, STATS } from '../types';
 import { resolveLook } from '../data/classHeroes';
 import ClassHero from './ClassHero';
+import { LegendTiers } from '../utils/legends';
 
 /**
  * Shown once when you come back after a few days away. Warm, no penalties,
@@ -17,6 +18,7 @@ export default function WelcomeBack({
   userName,
   userClass,
   heroLook,
+  tiers,
   level,
   quest,
   isBounty,
@@ -27,6 +29,7 @@ export default function WelcomeBack({
   userName: string;
   userClass: UserClass;
   heroLook: string;
+  tiers?: LegendTiers | null;
   level: number;
   quest: Quest | null;
   isBounty: boolean;
@@ -37,7 +40,7 @@ export default function WelcomeBack({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center overflow-y-auto bg-[#050510]/85 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="welcome-back-title">
       <div className="w-full max-w-sm rounded-2xl border p-6 text-center shadow-[0_0_60px_rgba(212,175,55,0.12)] animate-fade-in bg-[#15152a]" style={{ borderColor: `${look.color}55` }}>
-        <ClassHero cls={userClass} look={heroLook} idle className="mx-auto w-28 aspect-[2/3]" title={look.name} />
+        <ClassHero cls={userClass} look={heroLook} tiers={tiers} idle className="mx-auto w-28 aspect-[2/3]" title={look.name} />
         <h2 id="welcome-back-title" className="mt-3 font-serif text-xl font-bold tracking-wide text-[#d4af37]">
           Welcome back, {userName}
         </h2>

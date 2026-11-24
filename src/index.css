@@ -125,3 +125,21 @@ html.campfire body {
 @media (prefers-reduced-motion: reduce) {
   .hero-idle, .hero-rays { animation: none; }
 }
+
+/* ---- Hero legends: small ambient motions inside the art ---- */
+.hq-spin-slow { animation: hq-spin 30s linear infinite; transform-box: view-box; }
+@keyframes hq-spin { to { transform: rotate(360deg); } }
+.hq-float { animation: hq-float 4s ease-in-out infinite; }
+@keyframes hq-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+.hq-bob { animation: hq-bob 3s ease-in-out infinite; }
+.hq-bob2 { animation: hq-bob 3.6s ease-in-out infinite reverse; }
+@keyframes hq-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
+.hq-twinkle { animation: hq-twinkle 2.6s ease-in-out infinite; }
+@keyframes hq-twinkle { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+.hq-flicker { animation: hq-flicker .45s ease-in-out infinite alternate; }
+@keyframes hq-flicker { to { opacity: .55; } }
+.hq-pulse { animation: hq-pulse 1.6s ease-in-out infinite; }
+@keyframes hq-pulse { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .hq-spin-slow, .hq-float, .hq-bob, .hq-bob2, .hq-twinkle, .hq-flicker, .hq-pulse { animation: none; }
+}

@@ -77,6 +77,10 @@ import { pushActiveHere, disablePush } from './utils/push';
 import { pickBounty, bountyClaimed, daysAway, comebackQuest, COMEBACK_DAYS } from './utils/retention';
 import WelcomeBack from './components/WelcomeBack';
 import WeeklyRecap from './components/WeeklyRecap';
+import LegendCard from './components/LegendCard';
+import ChapterMoment from './components/ChapterMoment';
+import { legendFor, legendStats, legendProgress, legendEvents, LegendTiers, Tier } from './utils/legends';
+import { resolveLook } from './data/classHeroes';
 import {
   loadReminders,
   saveReminders,
@@ -817,6 +821,53 @@ export default function App() {
     [hasCreatedCharacter, quests, currentMockDate, userName],
   );
   const bountyDone = bountyClaimed(ledger, currentMockDate);
+
+  // Hero legend: each default hero's three upgrades, derived from the ledger.
+  const lookId = resolveLook(userClass, heroLook).id;
+  const legend = useMemo(() => {
+    const l = legendFor(lookId);
+    return l ? legendProgress(l, legendStats(ledger, currentMockDate)) : null;
+  }, [lookId, ledger, currentMockDate]);
+  const legendTiers = legend?.tiers ?? null;
+
+  // Legend moments: a new chapter gets the full-screen moment, a single
+  // upgrade gets a toast. Progress is remembered per look as the highest tiers
+  // seen, so first sight of an old history (or an undo and redo) stays quiet.
+  const [chapterMoment, setChapterMoment] = useState(false);
+  useEffect(() => {
+    if (!legend || !hasCreatedCharacter || isSyncing) return;
+    // Wait for loading and any cloud merge to settle: on boot the app briefly
+    // runs with placeholder state, which must neither be celebrated nor saved.
+    const timer = setTimeout(() => {
+      const KEY = `habitquest:legend-seen:${legend.legend.lookId}`;
+      let prev: LegendTiers | null = null;
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) prev = JSON.parse(raw);
+      } catch {
+        /* treat as unseen */
+      }
+      const events = legendEvents(prev, legend);
+      const best = (prev ? legend.tiers.map((t, i) => Math.max(t, prev![i])) : legend.tiers) as LegendTiers;
+      try {
+        localStorage.setItem(KEY, JSON.stringify(best));
+      } catch {
+        /* ignore */
+      }
+      if (events.some((e) => e.type === 'chapter')) {
+        setChapterMoment(true);
+      } else {
+        const piece = events.find((e) => e.type === 'piece');
+        if (piece && piece.type === 'piece') {
+          showToast(`✦ ${piece.track.label} upgraded: ${piece.track.names[piece.tier as Tier]}`);
+          playSfx('seal');
+        }
+      }
+    }, 900);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legend?.legend.lookId, legend?.tiers.join(','), hasCreatedCharacter, isSyncing]);
+
   const renderBountyBadge = (q: Quest) =>
     bountyQuest?.id === q.id ? (
       <span className="ml-1.5 inline-flex items-center rounded border border-[#d4af37]/40 bg-[#d4af37]/10 px-1 align-middle font-mono text-[8px] font-bold uppercase tracking-wider text-[#d4af37]">
@@ -2427,7 +2478,7 @@ export default function App() {
                 </span>
                 
                 <div className="flex items-center gap-1">
-                  <ClassHero cls={userClass} look={heroLook} bust backdrop={false} className="w-6 h-6 rounded-full bg-[#0c0c1b] border border-[#d4af37]/40" />
+                  <ClassHero cls={userClass} look={heroLook} tiers={legendTiers} bust backdrop={false} className="w-6 h-6 rounded-full bg-[#0c0c1b] border border-[#d4af37]/40" />
                   <span className="font-mono text-[10px] text-[#d4af37] font-semibold uppercase tracking-wider">
                     {CLASSES[userClass].name}
                   </span>
@@ -3315,6 +3366,7 @@ export default function App() {
 
             {/* CHRONICLE PANEL (with the weekly recap above it) */}
             <div className={`order-8 lg:order-none ${show('character')}`}>
+              <LegendCard progress={legend} userClass={userClass} heroLook={heroLook} />
               <WeeklyRecap ledger={ledger} todayStr={currentMockDate} shieldsEarnedOn={shields.earnedOn} />
               <Chronicle ledger={ledger} todayStr={currentMockDate} shieldedDates={shields.shieldedDates} shieldBank={shields.bank} />
             </div>
@@ -3359,12 +3411,17 @@ export default function App() {
         </Suspense>
       )}
 
+      {chapterMoment && legend && (
+        <ChapterMoment progress={legend} userClass={userClass} heroLook={heroLook} onClose={() => setChapterMoment(false)} />
+      )}
+
       {welcomeDays > 0 && (
         <WelcomeBack
           days={welcomeDays}
           userName={userName}
           userClass={userClass}
           heroLook={heroLook}
+          tiers={legendTiers}
           level={levelProgress.level}
           quest={comebackQuest(quests, bountyQuest)}
           isBounty={!!bountyQuest && comebackQuest(quests, bountyQuest)?.id === bountyQuest.id}
